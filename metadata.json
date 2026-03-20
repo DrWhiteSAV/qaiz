@@ -1,0 +1,9 @@
+{
+  "name": "Квайз (qaiz.ru)",
+  "description": "Онлайн платформа для проведения онлайн-квизов на разные тематики в режиме одиночных игр и мультиплеера.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

@@ -1,0 +1,139 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid}
+// Fields:
+//   - uid: string (required, immutable)
+//   - email: string (required, immutable)
+//   - displayName: string (required)
+//   - role: string (required, admin/author/player)
+//   - balance: number (required, >= 0)
+//   - telegramId: string (optional)
+//   - referralCode: string (required, immutable)
+//   - referredBy: string (optional, immutable)
+//   - createdAt: number (required, immutable)
+//   - city: string (optional, Невинномысск/Ставрополь)
+//
+// Collection: games
+// Document ID: {gameId}
+// Fields:
+//   - id: string (required, immutable)
+//   - title: string (required, < 100 chars)
+//   - description: string (optional, < 1000 chars)
+//   - authorId: string (required, immutable)
+//   - mode: string (required, human/true/light)
+//   - difficulty: string (required, dummy/people/genius/god)
+//   - type: string (required)
+//   - topic: string (required)
+//   - isMultiplayer: bool (required)
+//   - costPerQuestion: number (required, >= 0)
+//
+// Collection: sessions
+// Document ID: {sessionId}
+// Fields:
+//   - id: string (required, immutable)
+//   - gameId: string (required, immutable)
+//   - players: list (required, strings)
+//   - scores: map (required)
+//   - currentQuestionIndex: number (required, >= 0)
+//   - status: string (required, waiting/playing/finished)
+//   - startTime: number (required, immutable)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "shishkarnem@gmail.com" && request.auth.token.email_verified == true));
+    }
+    
+    function isAuthor() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'author';
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'balance', 'referralCode', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'author', 'player'] &&
+             data.balance is number && data.balance >= 0 &&
+             data.referralCode is string &&
+             data.createdAt is number;
+    }
+
+    function isValidGame(data) {
+      return hasRequiredFields(['id', 'title', 'authorId', 'mode', 'difficulty', 'type', 'topic', 'isMultiplayer', 'costPerQuestion']) &&
+             data.title is string && data.title.size() < 100 &&
+             data.authorId == request.auth.uid &&
+             data.mode in ['human', 'true', 'light'] &&
+             data.difficulty in ['dummy', 'people', 'genius', 'god'] &&
+             data.costPerQuestion is number && data.costPerQuestion >= 0;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                      (request.resource.data.role == 'player' || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                      (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
+    }
+
+    match /games/{gameId} {
+      allow read: if true; // Games are public
+      allow create: if (isAuthor() || isAdmin()) && isValidGame(request.resource.data);
+      allow update: if isAuthenticated() && isValidGame(request.resource.data) && 
+                      (resource.data.authorId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+    }
+    
+    // Default Deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

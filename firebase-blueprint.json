@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile information and balance",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "author", "player"] },
+        "balance": { "type": "number" },
+        "telegramId": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "city": { "type": "string", "enum": ["Невинномысск", "Ставрополь"] }
+      },
+      "required": ["uid", "email", "role", "balance", "referralCode", "createdAt"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "Quiz game definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "authorId": { "type": "string" },
+        "mode": { "type": "string", "enum": ["human", "true", "light"] },
+        "difficulty": { "type": "string", "enum": ["dummy", "people", "genius", "god"] },
+        "type": { "type": "string" },
+        "topic": { "type": "string" },
+        "isMultiplayer": { "type": "boolean" },
+        "costPerQuestion": { "type": "number" }
+      },
+      "required": ["id", "title", "authorId", "mode", "difficulty", "type", "topic", "isMultiplayer", "costPerQuestion"]
+    },
+    "GameSession": {
+      "title": "Game Session",
+      "description": "Active or finished game session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gameId": { "type": "string" },
+        "players": { "type": "array", "items": { "type": "string" } },
+        "scores": { "type": "object" },
+        "currentQuestionIndex": { "type": "number" },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "startTime": { "type": "number" }
+      },
+      "required": ["id", "gameId", "players", "scores", "currentQuestionIndex", "status", "startTime"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "/games/{gameId}": {
+      "schema": "Game",
+      "description": "Game definitions"
+    },
+    "/sessions/{sessionId}": {
+      "schema": "GameSession",
+      "description": "Game sessions"
+    }
+  }
+}

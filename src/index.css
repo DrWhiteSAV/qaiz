@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #83c42e;
+  --color-primary-dark: #6aa125;
+  --color-primary-light: #a2d95e;
+  --color-background: #0b1c1c;
+  --color-foreground: #ffffff;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-full bg-primary px-8 py-3 font-black uppercase tracking-tighter text-background transition-all hover:scale-105 hover:bg-primary-light active:scale-95 shadow-[0_0_20px_rgba(131,196,46,0.3)] hover:shadow-[0_0_30px_rgba(131,196,46,0.5)] border-2 border-primary-light/50;
+  }
+  
+  .border-glow {
+    @apply border-2 border-primary/40 shadow-[0_0_15px_rgba(131,196,46,0.2)] rounded-3xl;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent;
+  }
+  
+  .bg-gradient-frog {
+    @apply bg-gradient-to-br from-primary/10 via-background to-primary/5;
+  }
+  
+  .title-glow {
+    @apply text-primary drop-shadow-[0_0_10px_rgba(131,196,46,0.5)];
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-light);
+}
