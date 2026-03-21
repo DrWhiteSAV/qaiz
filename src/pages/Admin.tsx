@@ -10,6 +10,7 @@ export const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [seeding, setSeeding] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'users' && (profile?.role === 'admin' || profile?.role === 'superadmin')) {
@@ -33,6 +34,80 @@ export const AdminPage: React.FC = () => {
       setUsers(data || []);
     }
     setLoading(false);
+  };
+
+  const seedDemoData = async () => {
+    if (!confirm('Вы уверены, что хотите добавить демо-данные? Это добавит тестовые записи в таблицы.')) return;
+    
+    setSeeding(true);
+    const supabase = getSupabase();
+    if (!supabase || !user) {
+      setSeeding(false);
+      return;
+    }
+
+    try {
+      // Seed Game Sessions
+      await supabase.from('game_sessions').insert([
+        {
+          user_id: user.uid,
+          game_id: 'blitz',
+          topic: 'История мира',
+          difficulty: 'people',
+          mode: 'lite',
+          score: 1500,
+          total_questions: 20,
+          correct_answers: 15,
+          price_paid: 20,
+          is_win: true,
+          status: 'finished',
+          completed_at: new Date().toISOString()
+        },
+        {
+          user_id: user.uid,
+          game_id: 'millionaire',
+          topic: 'Кино',
+          difficulty: 'genius',
+          mode: 'true',
+          score: 50000,
+          total_questions: 15,
+          correct_answers: 12,
+          price_paid: 30,
+          is_win: false,
+          status: 'finished',
+          completed_at: new Date().toISOString()
+        }
+      ]);
+
+      // Seed Offline Registrations
+      await supabase.from('offline_registrations').insert([
+        {
+          user_id: user.uid,
+          city: 'Невинномысск',
+          date: '25 Марта',
+          team_name: 'Лягушки-интеллектуалы',
+          participants_count: 5,
+          comment: 'Нужен стол поближе к сцене',
+          status: 'confirmed'
+        }
+      ]);
+
+      // Seed Purchases
+      await supabase.from('purchases').insert([
+        {
+          user_id: user.uid,
+          item_id: 'pack1',
+          price_paid: 15
+        }
+      ]);
+
+      alert('Демо-данные успешно добавлены!');
+    } catch (error) {
+      console.error('Error seeding data:', error);
+      alert('Ошибка при добавлении данных');
+    } finally {
+      setSeeding(false);
+    }
   };
 
   if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
@@ -181,6 +256,67 @@ export const AdminPage: React.FC = () => {
               <div className="space-y-4">
                 <PromptField label="Генерация вопросов (Блиц)" value="Ты - ведущий квиза. Создай 10 сложных вопросов на тему..." />
                 <PromptField label="Проверка ответов (Light)" value="Сравни два ответа. Если они похожи по смыслу, верни true..." />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-8">
+              <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Настройки системы</h2>
+              
+              <div className="rounded-3xl border border-primary/20 bg-primary/5 p-8 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold text-primary">База данных и Тестирование</h3>
+                  <p className="text-sm text-foreground/60 mt-1">Инструменты для отладки и наполнения контентом.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="border border-primary/10 bg-background/40 p-6 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-3 text-primary">
+                      <Database size={24} />
+                      <span className="font-bold">Демо-данные</span>
+                    </div>
+                    <p className="text-xs text-foreground/60">
+                      Наполнить таблицы (сессии, покупки, регистрации) тестовыми записями для вашего аккаунта.
+                    </p>
+                    <button 
+                      onClick={seedDemoData}
+                      disabled={seeding}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-background transition-transform hover:scale-105 disabled:opacity-50"
+                    >
+                      {seeding ? <Loader2 className="animate-spin" size={18} /> : <Plus size={18} />}
+                      Заполнить таблицы
+                    </button>
+                  </div>
+
+                  <div className="border border-primary/10 bg-background/40 p-6 rounded-2xl space-y-4">
+                    <div className="flex items-center gap-3 text-primary">
+                      <ShieldCheck size={24} />
+                      <span className="font-bold">Безопасность</span>
+                    </div>
+                    <p className="text-xs text-foreground/60">
+                      Проверка RLS политик и прав доступа администраторов.
+                    </p>
+                    <button className="w-full rounded-xl border border-primary/20 py-3 text-sm font-bold text-primary hover:bg-primary/10">
+                      Запустить аудит
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-primary/20 bg-background/40 p-8">
+                <h3 className="text-xl font-bold text-primary mb-6">Общие настройки</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/10">
+                    <div>
+                      <p className="font-bold">Технические работы</p>
+                      <p className="text-xs text-foreground/40">Отключить доступ к играм для всех пользователей</p>
+                    </div>
+                    <div className="h-6 w-12 rounded-full bg-foreground/10 relative cursor-pointer">
+                      <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-background shadow-sm" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
