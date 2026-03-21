@@ -5,7 +5,7 @@ import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2 } 
 import { getSupabase } from '../supabase';
 
 export const AdminPage: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { playCroak } = useFrogSound();
   const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors'>('users');
   const [users, setUsers] = useState<any[]>([]);

@@ -24,6 +24,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    if (!auth || !db) {
+      setLoading(false);
+      setIsAuthReady(true);
+      return;
+    }
+
     // Check for Telegram Mini App user
     if (WebApp.initDataUnsafe.user) {
       handleTelegramLogin();

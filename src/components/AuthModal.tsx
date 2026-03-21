@@ -13,6 +13,11 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
   if (!isOpen || user) return null;
 
   const handleGoogleLogin = async () => {
+    if (!auth) {
+      console.error('Firebase Auth is not initialized');
+      alert('Ошибка инициализации Firebase. Проверьте подключение к интернету.');
+      return;
+    }
     playCroak();
     setLoading(true);
     try {
@@ -21,6 +26,7 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
       onClose();
     } catch (error) {
       console.error('Login error:', error);
+      alert('Ошибка входа: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
     } finally {
       setLoading(false);
     }

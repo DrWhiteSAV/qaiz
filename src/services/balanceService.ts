@@ -3,6 +3,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 
 export const balanceService = {
   async checkBalance(userId: string, requiredAmount: number) {
+    if (!db) return false;
     try {
       const userRef = doc(db, 'users', userId);
       const userSnap = await getDoc(userRef);
@@ -15,6 +16,7 @@ export const balanceService = {
   },
 
   async deductBalance(userId: string, amount: number) {
+    if (!db) return false;
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
@@ -28,6 +30,7 @@ export const balanceService = {
   },
 
   async addBalance(userId: string, amount: number) {
+    if (!db) return false;
     try {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
