@@ -3,14 +3,17 @@ import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle, Users, User } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { saveGameSession } from '../supabase';
 
 export function WhatWhereWhenGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'human', difficulty: 'genius', price: 33 };
   
-  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>('setup');
-  const [topic, setTopic] = useState('Логика и факты');
+  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>(options ? 'loading' : 'setup');
+  const [topic, setTopic] = useState(options.topic || 'Логика и факты');
   const [expertScore, setExpertScore] = useState(0);
   const [viewerScore, setViewerScore] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
@@ -19,12 +22,19 @@ export function WhatWhereWhenGame() {
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
 
+  useEffect(() => {
+    if (options && gameState === 'loading' && !currentQuestion) {
+      startLevel();
+    }
+  }, [gameState, currentQuestion]);
+
   const startLevel = async () => {
     if (!user || !profile) return;
     
-    const cost = 11 * 3; // 11 questions, assume 'human' mode (3 RUB per question)
+    const cost = options.price || 33; 
     if (profile.balance < cost) {
       alert('Недостаточно средств на балансе!');
+      setGameState('setup');
       return;
     }
 
@@ -35,7 +45,7 @@ export function WhatWhereWhenGame() {
   const nextQuestion = async () => {
     setGameState('loading');
     try {
-      const generated = await geminiService.generateQuestions(topic, 'genius', 1);
+      const generated = await geminiService.generateQuestions(topic, options.difficulty || 'genius', 1);
       setCurrentQuestion(generated[0]);
       setGameState('playing');
       setTimeLeft(60);
@@ -57,16 +67,34 @@ export function WhatWhereWhenGame() {
     // Deduct balance
     await balanceService.deductBalance(user!.uid, 3);
 
+    const newExpertScore = result.isCorrect ? expertScore + 1 : expertScore;
+    const newViewerScore = !result.isCorrect ? viewerScore + 1 : viewerScore;
+
     if (result.isCorrect) {
-      setExpertScore(s => s + 1);
+      setExpertScore(newExpertScore);
     } else {
-      setViewerScore(s => s + 1);
+      setViewerScore(newViewerScore);
     }
 
     setChecking(false);
 
-    setTimeout(() => {
-      if (expertScore + (result.isCorrect ? 1 : 0) >= 6 || viewerScore + (!result.isCorrect ? 1 : 0) >= 6) {
+    setTimeout(async () => {
+      if (newExpertScore >= 6 || newViewerScore >= 6) {
+        // Save session
+        if (user) {
+          await saveGameSession({
+            userId: user.uid,
+            gameId: 'whatwherewhen',
+            score: newExpertScore * 1000,
+            totalQuestions: newExpertScore + newViewerScore,
+            correctAnswers: newExpertScore,
+            mode: options.mode,
+            difficulty: options.difficulty,
+            topic: options.topic || topic,
+            pricePaid: options.price,
+            isWin: newExpertScore >= 6
+          });
+        }
         setGameState('result');
       } else {
         nextQuestion();
@@ -81,7 +109,7 @@ export function WhatWhereWhenGame() {
     } else if (timeLeft === 0 && gameState === 'playing' && !feedback) {
       handleAnswer();
     }
-  }, [timeLeft, gameState, feedback, handleAnswer]);
+  }, [timeLeft, gameState, feedback]);
 
   if (gameState === 'setup') {
     return (

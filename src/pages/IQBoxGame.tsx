@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
 import { Timer, Box, Users, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { saveGameSession } from '../supabase';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface Player {
   uid: string;
@@ -12,21 +14,44 @@ interface Player {
 }
 
 export const IQBoxGame: React.FC = () => {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { playCroak } = useFrogSound();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'human', difficulty: 'people', price: 50 };
+  
   const [gameState, setGameState] = useState<'waiting' | 'playing' | 'finished'>('waiting');
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<string>('Загрузка вопроса...');
   const [timeLeft, setTimeLeft] = useState(30);
+  const [score, setScore] = useState(0);
 
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0) {
       const timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0) {
-      setGameState('finished');
+    } else if (timeLeft === 0 && gameState === 'playing') {
+      finishGame();
     }
   }, [gameState, timeLeft]);
+
+  const finishGame = async () => {
+    setGameState('finished');
+    if (user) {
+      await saveGameSession({
+        userId: user.uid,
+        gameId: 'iqbox',
+        score: score,
+        totalQuestions: 1,
+        correctAnswers: 1,
+        mode: options.mode,
+        difficulty: options.difficulty,
+        topic: options.topic || 'IQ Box',
+        pricePaid: options.price,
+        isWin: true // Demo always wins
+      });
+    }
+  };
 
   const startMatch = () => {
     playCroak();
@@ -38,6 +63,7 @@ export const IQBoxGame: React.FC = () => {
       { uid: '4', name: 'Кибер-Жаба 3', score: 0, boxIndex: 3 },
     ]);
     setCurrentQuestion('Какое животное является символом нашего приложения?');
+    setScore(1000); // Demo score
   };
 
   return (

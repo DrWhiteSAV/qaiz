@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { saveGameSession } from '../supabase';
 
 const PRIZES = [
   100, 200, 300, 500, 1000, // 5: Safety net
@@ -14,9 +15,11 @@ const PRIZES = [
 export function MillionaireGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'lite', difficulty: 'people', price: 30 };
   
   const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>('setup');
-  const [topic, setTopic] = useState('Общие знания');
+  const [topic, setTopic] = useState(options.topic || 'Общие знания');
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export function MillionaireGame() {
   const startLevel = async () => {
     if (!user || !profile) return;
     
-    const cost = 15 * 2; // 15 questions, assume 'true' mode (2 RUB per question)
+    const cost = options.price || 30; 
     if (profile.balance < cost) {
       alert('Недостаточно средств на балансе!');
       return;
@@ -38,7 +41,7 @@ export function MillionaireGame() {
     setGameState('loading');
     try {
       // Generate questions with increasing difficulty
-      const generated = await geminiService.generateQuestions(topic, 'people', 15);
+      const generated = await geminiService.generateQuestions(topic, options.difficulty || 'people', 15);
       setQuestions(generated);
       setGameState('playing');
     } catch (error) {
@@ -62,7 +65,7 @@ export function MillionaireGame() {
     // Deduct balance
     await balanceService.deductBalance(user!.uid, 2);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (isCorrect) {
         setScore(PRIZES[currentIndex]);
         if (currentIndex < 14) {
@@ -72,6 +75,21 @@ export function MillionaireGame() {
           setDisabledOptions([]);
           setAiHintText(null);
         } else {
+          // Win!
+          if (user) {
+            await saveGameSession({
+              userId: user.uid,
+              gameId: 'millionaire',
+              score: PRIZES[14],
+              totalQuestions: 15,
+              correctAnswers: 15,
+              mode: options.mode,
+              difficulty: options.difficulty,
+              topic: options.topic || topic,
+              pricePaid: options.price,
+              isWin: true
+            });
+          }
           setGameState('result');
         }
       } else {
@@ -80,6 +98,22 @@ export function MillionaireGame() {
         if (currentIndex >= 10) finalScore = PRIZES[9];
         else if (currentIndex >= 5) finalScore = PRIZES[4];
         setScore(finalScore);
+        
+        // Save session to Supabase
+        if (user) {
+          await saveGameSession({
+            userId: user.uid,
+            gameId: 'millionaire',
+            score: finalScore,
+            totalQuestions: 15,
+            correctAnswers: currentIndex,
+            mode: options.mode,
+            difficulty: options.difficulty,
+            topic: options.topic || topic,
+            pricePaid: options.price,
+            isWin: false
+          });
+        }
         setGameState('result');
       }
     }, 3000);

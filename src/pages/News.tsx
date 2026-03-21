@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Newspaper, 
@@ -7,33 +7,46 @@ import {
   Share2, 
   Plus, 
   Calendar,
-  User
+  User,
+  Loader2
 } from 'lucide-react';
+import { getSupabase } from '../supabase';
 
 export function NewsPage() {
   const { profile } = useAuth();
-  const [news] = useState<any[]>([
-    {
-      id: '1',
-      title: 'Запуск платформы Квайз!',
-      content: 'Мы рады объявить о запуске нашей новой платформы для онлайн-квизов. Теперь вы можете играть в любимые игры прямо в браузере или через Telegram!',
-      author: 'Администрация',
-      date: '20.03.2026',
-      likes: 42,
-      comments: 5,
-      image: 'https://picsum.photos/seed/launch/800/400'
-    },
-    {
-      id: '2',
-      title: 'Новый режим: Угадай мелодию',
-      content: 'Добавлен новый игровой режим "Угадай мелодию". Испытайте свой слух и скорость реакции!',
-      author: 'Разработчик',
-      date: '19.03.2026',
-      likes: 28,
-      comments: 2,
-      image: 'https://picsum.photos/seed/music/800/400'
+  const [news, setNews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchNews();
+  }, []);
+
+  const fetchNews = async () => {
+    setLoading(true);
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('news')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching news:', error);
+    } else {
+      setNews(data || []);
     }
-  ]);
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 text-center">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+        <p className="mt-8 text-xl font-bold text-primary animate-pulse">Загрузка новостей...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -48,23 +61,25 @@ export function NewsPage() {
       </div>
 
       <div className="grid gap-8">
-        {news.map(post => (
+        {news.length > 0 ? news.map(post => (
           <article key={post.id} className="overflow-hidden rounded-3xl border border-primary/20 bg-background shadow-xl">
-            <img 
-              src={post.image} 
-              alt={post.title} 
-              className="h-64 w-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            {post.image_url && (
+              <img 
+                src={post.image_url} 
+                alt={post.title} 
+                className="h-64 w-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            )}
             <div className="p-8">
               <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-foreground/40">
                 <div className="flex items-center gap-1">
                   <Calendar size={14} />
-                  <span>{post.date}</span>
+                  <span>{new Date(post.created_at).toLocaleDateString()}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <User size={14} />
-                  <span>{post.author}</span>
+                  <span>{post.author_name || 'Администрация'}</span>
                 </div>
               </div>
               <h3 className="mt-4 text-3xl font-black uppercase tracking-tighter text-primary">{post.title}</h3>
@@ -73,11 +88,11 @@ export function NewsPage() {
               <div className="mt-8 flex items-center gap-6 border-t border-primary/10 pt-6">
                 <button className="flex items-center gap-2 font-bold text-foreground/60 transition-colors hover:text-primary">
                   <Heart size={20} />
-                  <span>{post.likes}</span>
+                  <span>{post.likes_count || 0}</span>
                 </button>
                 <button className="flex items-center gap-2 font-bold text-foreground/60 transition-colors hover:text-primary">
                   <MessageSquare size={20} />
-                  <span>{post.comments}</span>
+                  <span>{post.comments_count || 0}</span>
                 </button>
                 <button className="flex items-center gap-2 font-bold text-foreground/60 transition-colors hover:text-primary">
                   <Share2 size={20} />
@@ -85,7 +100,9 @@ export function NewsPage() {
               </div>
             </div>
           </article>
-        ))}
+        )) : (
+          <div className="text-center py-20 text-foreground/40 italic">Новостей пока нет</div>
+        )}
       </div>
     </div>
   );

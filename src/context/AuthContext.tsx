@@ -12,6 +12,7 @@ interface AuthContextType {
   loading: boolean;
   isAuthReady: boolean;
   loginWithTelegram: () => Promise<void>;
+  updateBalance: (newBalance: number) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,12 +82,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase
         .from('profiles')
         .upsert({
-          id: profile.uid,
+          uid: profile.uid,
           email: profile.email,
           display_name: profile.displayName,
           balance: profile.balance,
           role: profile.role,
           telegram_id: profile.telegramId,
+          referral_code: profile.referralCode,
+          referral_count: profile.referralCount,
+          referral_earnings: profile.referralEarnings,
+          author_status: profile.authorStatus,
+          author_earnings: profile.authorEarnings,
           updated_at: new Date().toISOString(),
         });
       if (error) console.error('Supabase sync error:', error);
@@ -99,13 +105,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const userRef = doc(db, 'users', user.uid);
     const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     
+    const isSuperAdmin = user.email === 'shishkarnem@gmail.com' || user.uid === '2A9a923z';
+    
     const newProfile: UserProfile = {
       uid: user.uid,
       email: user.email || '',
       displayName: user.displayName || 'Игрок',
-      role: 'player',
+      role: isSuperAdmin ? 'superadmin' : 'player',
       balance: 100,
       referralCode,
+      referralCount: 0,
+      referralEarnings: 0,
+      authorStatus: 'none',
+      authorEarnings: 0,
       createdAt: Date.now(),
     };
 
@@ -121,8 +133,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     WebApp.showAlert('Вход через Telegram...');
   };
 
+  const updateBalance = async (newBalance: number) => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    try {
+      await setDoc(userRef, { balance: newBalance }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAuthReady, loginWithTelegram }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAuthReady, loginWithTelegram, updateBalance }}>
       {children}
     </AuthContext.Provider>
   );

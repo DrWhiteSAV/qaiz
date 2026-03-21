@@ -3,11 +3,22 @@ import { GoogleGenAI, Type } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export const geminiService = {
-  async generateQuestions(topic: string, difficulty: string, count: number = 10) {
+  async generateQuestions(topic: string, difficulty: string, count: number = 10, type: string = 'normal') {
+    let prompt = `Сгенерируй ${count} вопросов для квиза на тему "${topic}" со сложностью "${difficulty}". 
+    Верни массив объектов в формате JSON с полями: text, options (массив из 4 строк), correctAnswer (строка из options), hint.`;
+
+    if (type === 'blitz') {
+      prompt = `Сгенерируй ${count} вопросов для Блиц-Квиза на тему "${topic}" со сложностью "${difficulty}".
+      ВАЖНО: 
+      1. Вопросы должны быть на ЛОГИЧЕСКУЮ ДЕДУКЦИЮ и сообразительность, а не на простое знание фактов.
+      2. Вопросы должны быть ТЕКСТОВЫМИ (без вариантов ответа).
+      3. Ответ должен быть коротким (1-3 слова).
+      Верни массив объектов в формате JSON с полями: text, correctAnswer (строка), hint.`;
+    }
+
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
-      contents: `Сгенерируй ${count} вопросов для квиза на тему "${topic}" со сложностью "${difficulty}". 
-      Верни массив объектов в формате JSON с полями: text, options (массив из 4 строк), correctAnswer (строка из options), hint.`,
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -23,7 +34,7 @@ export const geminiService = {
               correctAnswer: { type: Type.STRING },
               hint: { type: Type.STRING }
             },
-            required: ["text", "options", "correctAnswer"]
+            required: ["text", "correctAnswer"]
           }
         }
       }

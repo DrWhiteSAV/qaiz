@@ -4,28 +4,38 @@
   --color-primary: #83c42e;
   --color-primary-dark: #6aa125;
   --color-primary-light: #a2d95e;
-  --color-background: #0b1c1c;
-  --color-foreground: #ffffff;
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
   
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+:root {
+  --bg: #f8fafc;
+  --fg: #0f172a;
+  --primary-glow: rgba(131, 196, 46, 0.2);
+}
+
+.dark {
+  --bg: #0b1c1c;
+  --fg: #ffffff;
+  --primary-glow: rgba(131, 196, 46, 0.5);
+}
+
 @layer base {
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply rounded-full bg-primary px-8 py-3 font-black uppercase tracking-tighter text-background transition-all hover:scale-105 hover:bg-primary-light active:scale-95 shadow-[0_0_20px_rgba(131,196,46,0.3)] hover:shadow-[0_0_30px_rgba(131,196,46,0.5)] border-2 border-primary-light/50;
+    @apply rounded-full bg-primary px-8 py-3 font-black uppercase tracking-tighter text-white transition-all hover:scale-105 hover:bg-primary-light active:scale-95 shadow-[0_0_20px_rgba(131,196,46,0.3)] hover:shadow-[0_0_30px_rgba(131,196,46,0.5)] border-2 border-primary-light/50;
   }
   
   .border-glow {
-    @apply border-2 border-primary/40 shadow-[0_0_15px_rgba(131,196,46,0.2)] rounded-3xl;
+    @apply border-2 border-primary/40 shadow-[0_0_15px_var(--primary-glow)] rounded-3xl;
   }
   
   .text-gradient {

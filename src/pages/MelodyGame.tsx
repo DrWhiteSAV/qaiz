@@ -3,34 +3,45 @@ import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
 import { Timer, Music, Send, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { saveGameSession } from '../supabase';
 
 export function MelodyGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'human', difficulty: 'people', price: 30 };
   
-  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>('setup');
-  const [topic, setTopic] = useState('Популярные хиты');
+  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>(options ? 'loading' : 'setup');
+  const [topic, setTopic] = useState(options.topic || 'Популярные хиты');
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [score, setScore] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
   const [currentPoints, setCurrentPoints] = useState(1000);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
 
+  useEffect(() => {
+    if (options && gameState === 'loading' && questions.length === 0) {
+      startLevel();
+    }
+  }, [gameState, questions.length]);
+
   const startLevel = async () => {
     if (!user || !profile) return;
     
-    const cost = 10 * 3; // 10 questions, human mode only (3 RUB per question)
+    const cost = options.price || 30; 
     if (profile.balance < cost) {
       alert('Недостаточно средств на балансе!');
+      setGameState('setup');
       return;
     }
 
     setGameState('loading');
     try {
-      const generated = await geminiService.generateQuestions(topic, 'people', 10);
+      const generated = await geminiService.generateQuestions(topic, options.difficulty || 'people', 10);
       setQuestions(generated);
       setGameState('playing');
       setCurrentPoints(1000);
@@ -50,6 +61,7 @@ export function MelodyGame() {
     setFeedback(result);
     if (result.isCorrect) {
       setScore(s => s + currentPoints);
+      setCorrectCount(c => c + 1);
     }
     
     // Deduct balance
@@ -57,13 +69,30 @@ export function MelodyGame() {
 
     setChecking(false);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (currentIndex < questions.length - 1) {
         setCurrentIndex(i => i + 1);
         setCurrentPoints(1000);
         setUserAnswer('');
         setFeedback(null);
       } else {
+        // Save session
+        if (user) {
+          const finalScore = score + (result.isCorrect ? currentPoints : 0);
+          const finalCorrectCount = correctCount + (result.isCorrect ? 1 : 0);
+          await saveGameSession({
+            userId: user.uid,
+            gameId: 'melody',
+            score: finalScore,
+            totalQuestions: 10,
+            correctAnswers: finalCorrectCount,
+            mode: options.mode,
+            difficulty: options.difficulty,
+            topic: options.topic || topic,
+            pricePaid: options.price,
+            isWin: finalCorrectCount >= 7 // Assuming 7/10 is a win for Melody
+          });
+        }
         setGameState('result');
       }
     }, 3000);

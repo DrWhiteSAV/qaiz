@@ -3,15 +3,18 @@ import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { saveGameSession } from '../supabase';
 
 export function BlitzGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'lite', difficulty: 'people', price: 10 };
   
-  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>('setup');
+  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>(options ? 'loading' : 'setup');
   const [topic, setTopic] = useState('Общие знания');
-  const [difficulty, setDifficulty] = useState('people');
+  const [difficulty, setDifficulty] = useState(options.difficulty || 'people');
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
@@ -20,20 +23,25 @@ export function BlitzGame() {
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
 
+  useEffect(() => {
+    if (options && gameState === 'loading' && questions.length === 0) {
+      startLevel();
+    }
+  }, [gameState, questions.length]);
+
   const startLevel = async () => {
     if (!user || !profile) return;
     
-    // Check balance for 10 questions (Blitz is 10 questions)
-    // Blitz cost depends on mode, let's assume 'light' for now (1 RUB per question)
-    const cost = 10; 
+    const cost = options.price || 10; 
     if (profile.balance < cost) {
       alert('Недостаточно средств на балансе!');
+      setGameState('setup');
       return;
     }
 
     setGameState('loading');
     try {
-      const generated = await geminiService.generateQuestions(topic, difficulty, 10);
+      const generated = await geminiService.generateQuestions(topic, difficulty, 10, 'blitz');
       setQuestions(generated);
       setGameState('playing');
       setTimeLeft(60);
@@ -56,7 +64,7 @@ export function BlitzGame() {
     // Deduct balance for this question
     await balanceService.deductBalance(user!.uid, 1);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setFeedback(null);
       setUserAnswer('');
       setChecking(false);
@@ -64,10 +72,26 @@ export function BlitzGame() {
         setCurrentIndex(i => i + 1);
         setTimeLeft(60);
       } else {
+        // Save session to Supabase
+        if (user) {
+          const finalScore = score + (result.isCorrect ? 1 : 0);
+          await saveGameSession({
+            userId: user.uid,
+            gameId: 'blitz',
+            score: finalScore,
+            totalQuestions: questions.length,
+            correctAnswers: finalScore,
+            mode: options.mode,
+            difficulty: options.difficulty,
+            topic: options.topic || topic,
+            pricePaid: options.price,
+            isWin: finalScore >= 7 // Assuming 7/10 is a win for Blitz
+          });
+        }
         setGameState('result');
       }
     }, 3000);
-  }, [currentIndex, questions, userAnswer, user, checking]);
+  }, [currentIndex, questions, userAnswer, user, checking, score, options, topic]);
 
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0 && !feedback) {

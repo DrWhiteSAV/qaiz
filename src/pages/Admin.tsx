@@ -1,14 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
-import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus } from 'lucide-react';
+import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2 } from 'lucide-react';
+import { getSupabase } from '../supabase';
 
 export const AdminPage: React.FC = () => {
   const { profile } = useAuth();
   const { playCroak } = useFrogSound();
-  const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors'>('users');
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  if (profile?.role !== 'admin') {
+  useEffect(() => {
+    if (activeTab === 'users' && (profile?.role === 'admin' || profile?.role === 'superadmin')) {
+      fetchUsers();
+    }
+  }, [activeTab, profile]);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching users:', error);
+    } else {
+      setUsers(data || []);
+    }
+    setLoading(false);
+  };
+
+  if (profile?.role !== 'admin' && profile?.role !== 'superadmin') {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
         <ShieldCheck size={80} className="text-red-500" />
@@ -49,6 +76,12 @@ export const AdminPage: React.FC = () => {
             label="Пользователи"
           />
           <TabButton 
+            active={activeTab === 'authors'} 
+            onClick={() => { playCroak(); setActiveTab('authors'); }}
+            icon={<ShieldCheck size={20} />}
+            label="Заявки в авторы"
+          />
+          <TabButton 
             active={activeTab === 'games'} 
             onClick={() => { playCroak(); setActiveTab('games'); }}
             icon={<Database size={20} />}
@@ -78,21 +111,47 @@ export const AdminPage: React.FC = () => {
                   <input type="text" placeholder="Поиск по email/ID..." className="rounded-full border border-primary/20 bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
               </div>
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <Loader2 className="animate-spin text-primary" size={48} />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-primary/10 text-xs uppercase tracking-widest text-foreground/40">
+                        <th className="pb-4 font-medium">Пользователь</th>
+                        <th className="pb-4 font-medium">Роль</th>
+                        <th className="pb-4 font-medium">Баланс</th>
+                        <th className="pb-4 font-medium">Статус</th>
+                        <th className="pb-4 font-medium">Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-primary/5">
+                      {users.map(u => (
+                        <UserRow key={u.uid} name={u.display_name || u.email} role={u.role} balance={u.balance} status="Active" uid={u.uid} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'authors' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Заявки в авторы</h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-primary/10 text-xs uppercase tracking-widest text-foreground/40">
                       <th className="pb-4 font-medium">Пользователь</th>
-                      <th className="pb-4 font-medium">Роль</th>
-                      <th className="pb-4 font-medium">Баланс</th>
-                      <th className="pb-4 font-medium">Статус</th>
+                      <th className="pb-4 font-medium">Дата</th>
                       <th className="pb-4 font-medium">Действия</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-primary/5">
-                    <UserRow name="shishkarnem@gmail.com" role="admin" balance="100,000" status="Active" />
-                    <UserRow name="player1@test.ru" role="player" balance="500" status="Active" />
-                    <UserRow name="author_test@mail.ru" role="author" balance="1,200" status="Active" />
+                    <AuthorRequestRow name="test_author@mail.ru" date="20.03.2024" />
                   </tbody>
                 </table>
               </div>
@@ -145,15 +204,31 @@ const TabButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
   </button>
 );
 
-const UserRow = ({ name, role, balance, status }: { name: string, role: string, balance: string, status: string }) => (
+const AuthorRequestRow = ({ name, date }: { name: string, date: string }) => (
   <tr className="group hover:bg-primary/5 transition-colors">
     <td className="py-4">
       <p className="font-bold">{name}</p>
       <p className="text-[10px] text-foreground/40 uppercase tracking-widest">ID: {Math.random().toString(36).substring(7)}</p>
     </td>
+    <td className="py-4 text-sm text-foreground/60">{date}</td>
+    <td className="py-4">
+      <div className="flex gap-2">
+        <button className="rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase text-background">Одобрить</button>
+        <button className="rounded-full bg-red-500/20 px-3 py-1 text-[10px] font-bold uppercase text-red-500">Отклонить</button>
+      </div>
+    </td>
+  </tr>
+);
+
+const UserRow = ({ name, role, balance, status, uid }: { name: string, role: string, balance: number, status: string, uid: string }) => (
+  <tr className="group hover:bg-primary/5 transition-colors">
+    <td className="py-4">
+      <p className="font-bold">{name}</p>
+      <p className="text-[10px] text-foreground/40 uppercase tracking-widest">ID: {uid.slice(0, 8)}</p>
+    </td>
     <td className="py-4">
       <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
-        role === 'admin' ? 'bg-red-500/20 text-red-500' : role === 'author' ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/20 text-primary'
+        role === 'admin' || role === 'superadmin' ? 'bg-red-500/20 text-red-500' : role === 'author' ? 'bg-blue-500/20 text-blue-500' : 'bg-primary/20 text-primary'
       }`}>
         {role}
       </span>

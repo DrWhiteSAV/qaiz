@@ -3,7 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, Heart, Send } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { saveGameSession } from '../supabase';
 
 interface Answer {
   text: string;
@@ -14,9 +15,11 @@ interface Answer {
 export function OneHundredToOneGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const options = location.state || { mode: 'lite', difficulty: 'people', price: 40 };
   
-  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>('setup');
-  const [topic, setTopic] = useState('Общие знания');
+  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'result'>(options ? 'loading' : 'setup');
+  const [topic, setTopic] = useState(options.topic || 'Общие знания');
   const [round, setRound] = useState(1);
   const [question, setQuestion] = useState<string>('');
   const [answers, setAnswers] = useState<Answer[]>([]);
@@ -26,12 +29,19 @@ export function OneHundredToOneGame() {
   const [checking, setChecking] = useState(false);
   const [hintUsed, setHintUsed] = useState(false);
 
+  useEffect(() => {
+    if (options && gameState === 'loading' && question === '') {
+      startLevel();
+    }
+  }, [gameState, question]);
+
   const startLevel = async () => {
     if (!user || !profile) return;
     
-    const cost = 4 * 10; // 4 rounds, 10 RUB per round
+    const cost = options.price || 40; 
     if (profile.balance < cost) {
       alert('Недостаточно средств на балансе!');
+      setGameState('setup');
       return;
     }
 
@@ -87,12 +97,14 @@ export function OneHundredToOneGame() {
       }
     }
 
+    let currentScore = score;
     if (foundIndex !== -1) {
       const multiplier = round === 2 ? 2 : round === 3 ? 3 : 1;
       const points = answers[foundIndex].points * multiplier;
+      currentScore += points;
       
       setAnswers(prev => prev.map((a, i) => i === foundIndex ? { ...a, revealed: true } : a));
-      setScore(s => s + points);
+      setScore(currentScore);
       
       // Deduct balance
       await balanceService.deductBalance(user!.uid, 1);
@@ -100,9 +112,26 @@ export function OneHundredToOneGame() {
       setMistakes(m => m + 1);
       if (mistakes + 1 >= 3) {
         // Round over
-        setTimeout(() => {
+        setTimeout(async () => {
           if (round < 4) loadRound(round + 1);
-          else setGameState('result');
+          else {
+            // Save session
+            if (user) {
+              await saveGameSession({
+                userId: user.uid,
+                gameId: '100to1',
+                score: currentScore,
+                totalQuestions: 4,
+                correctAnswers: 0,
+                mode: options.mode,
+                difficulty: options.difficulty,
+                topic: options.topic || topic,
+                pricePaid: options.price,
+                isWin: currentScore >= 200 // Assuming 200 is a win for 100to1
+              });
+            }
+            setGameState('result');
+          }
         }, 2000);
       }
     }
@@ -112,9 +141,26 @@ export function OneHundredToOneGame() {
 
     // Check if all revealed
     if (answers.every((a, i) => i === foundIndex || a.revealed)) {
-      setTimeout(() => {
+      setTimeout(async () => {
         if (round < 4) loadRound(round + 1);
-        else setGameState('result');
+        else {
+          // Save session
+          if (user) {
+            await saveGameSession({
+              userId: user.uid,
+              gameId: '100to1',
+              score: currentScore,
+              totalQuestions: 4,
+              correctAnswers: 0,
+              mode: options.mode,
+              difficulty: options.difficulty,
+              topic: options.topic || topic,
+              pricePaid: options.price,
+              isWin: currentScore >= 200
+            });
+          }
+          setGameState('result');
+        }
       }, 2000);
     }
   };

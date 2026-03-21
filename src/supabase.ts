@@ -23,3 +23,45 @@ export const getSupabase = (): SupabaseClient | null => {
 
 // For backward compatibility if needed, but getSupabase() is preferred
 export const supabase = getSupabase();
+
+export const saveGameSession = async (session: {
+  userId: string;
+  gameId: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  mode: string;
+  difficulty: string;
+  topic?: string;
+  pricePaid: number;
+  isWin?: boolean;
+}) => {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('game_sessions')
+      .insert({
+        user_id: session.userId,
+        game_id: session.gameId,
+        score: session.score,
+        total_questions: session.totalQuestions,
+        correct_answers: session.correctAnswers,
+        mode: session.mode,
+        difficulty: session.difficulty,
+        topic: session.topic,
+        price_paid: session.pricePaid,
+        is_win: session.isWin,
+        completed_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    console.error('Failed to save game session:', err);
+    return null;
+  }
+};

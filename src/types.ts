@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'author' | 'player';
+export type UserRole = 'superadmin' | 'admin' | 'author' | 'player';
 
 export interface UserProfile {
   uid: string;
@@ -9,6 +9,10 @@ export interface UserProfile {
   telegramId?: string;
   referralCode: string;
   referredBy?: string;
+  referralCount?: number;
+  referralEarnings?: number;
+  authorStatus?: 'none' | 'pending' | 'active';
+  authorEarnings?: number;
   createdAt: number;
   city?: 'Невинномысск' | 'Ставрополь';
 }
