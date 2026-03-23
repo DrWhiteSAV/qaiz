@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
-import { UserProfile } from '../types';
+import { UserProfile, UserRole } from '../types';
 import WebApp from '@twa-dev/sdk';
 import { getSupabase } from '../supabase';
 
@@ -13,6 +13,12 @@ interface AuthContextType {
   isAuthReady: boolean;
   loginWithTelegram: () => Promise<void>;
   updateBalance: (newBalance: number) => Promise<void>;
+  purchaseGames: (gameIds: string[], totalPrice: number) => Promise<void>;
+  markGameAsPlayed: (gameId: string) => Promise<void>;
+  linkTelegram: (code: string) => Promise<boolean>;
+  unlinkTelegram: () => Promise<void>;
+  changeGoogleAccount: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,15 +52,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const unsubscribeProfile = onSnapshot(userRef, (snapshot) => {
           if (snapshot.exists()) {
             const data = snapshot.data() as UserProfile;
+            
+            // Check for superadmin status
+            if (data.email === 'shishkarnem@gmail.com') {
+              if (data.role !== 'superadmin') {
+                updateProfileRoleAndBalance(currentUser.uid, 'superadmin');
+              }
+            }
+            
             setProfile(data);
-            // Sync with Supabase if needed
             syncWithSupabase(data);
           } else {
             createInitialProfile(currentUser);
           }
           setLoading(false);
         }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+          console.error('Profile snapshot error:', error);
           setLoading(false);
         });
 
@@ -68,16 +81,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribeAuth();
   }, []);
 
+  const updateProfileRoleAndBalance = async (uid: string, role: UserRole, balance?: number) => {
+    try {
+      const updateData: any = { role };
+      if (balance !== undefined) updateData.balance = balance;
+      await setDoc(doc(db, 'users', uid), updateData, { merge: true });
+    } catch (err) {
+      console.error('Error updating role/balance:', err);
+    }
+  };
+
   const handleTelegramLogin = async () => {
     const tgUser = WebApp.initDataUnsafe.user;
     if (!tgUser) return;
 
-    // In a real app, you'd verify the initData on the server
-    // For now, we'll use the TG ID as a way to link or create a user
     console.log('Telegram User:', tgUser);
     
-    // We can use a custom token or just sign in anonymously and link the TG ID
-    // For this demo, we'll assume the user is already handled or we'll use their ID
+    // If we have a TG user, we should ensure the profile has their TG info
+    // This is handled in createInitialProfile or via a manual link
   };
 
   const syncWithSupabase = async (profile: UserProfile) => {
@@ -88,9 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { error } = await supabase
         .from('profiles')
         .upsert({
-          uid: profile.uid,
+          id: profile.uid, // Map Firebase UID to Supabase ID
           email: profile.email,
           display_name: profile.displayName,
+          photo_url: profile.photoURL,
           balance: profile.balance,
           role: profile.role,
           telegram_id: profile.telegramId,
@@ -107,18 +129,95 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const linkTelegram = async (code: string) => {
+    if (!user || !profile) return;
+    
+    // Strip prefix 'sdf' and suffix 'gh' as requested
+    let tgId = code;
+    if (code.startsWith('sdf') && code.endsWith('gh')) {
+      tgId = code.substring(3, code.length - 2);
+    }
+    
+    // Simple validation: should be numeric
+    if (!/^\d+$/.test(tgId)) {
+      throw new Error('Неверный формат кода');
+    }
+    
+    const userRef = doc(db, 'users', user.uid);
+    
+    try {
+      await setDoc(userRef, { 
+        telegramId: tgId,
+        telegramConfirmationCode: code
+      }, { merge: true });
+      return true;
+    } catch (err) {
+      console.error('Error linking Telegram:', err);
+      throw err;
+    }
+  };
+
+  const unlinkTelegram = async () => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    try {
+      // Update Firestore
+      await setDoc(userRef, { 
+        telegramId: null,
+        telegramConfirmationCode: null 
+      }, { merge: true });
+      
+      // Also update Supabase
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase
+          .from('profiles')
+          .update({ 
+            telegram_id: null,
+            tg_confirmation_code: null 
+          })
+          .eq('id', user.uid);
+      }
+    } catch (err) {
+      console.error('Error unlinking Telegram:', err);
+      throw err;
+    }
+  };
+
+  const changeGoogleAccount = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    
+    try {
+      // First sign out to be safe, then sign in with prompt
+      await signOut(auth);
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error('Error changing Google account:', err);
+      throw err;
+    }
+  };
+
   const createInitialProfile = async (user: User) => {
     const userRef = doc(db, 'users', user.uid);
-    const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const tgUser = WebApp.initDataUnsafe.user;
+    
+    // Referral logic
+    const startParam = WebApp.initDataUnsafe.start_param;
+    const referredBy = startParam || undefined;
+
+    const referralCode = tgUser?.id?.toString() || Math.random().toString(36).substring(2, 8).toUpperCase();
     
     const isSuperAdmin = user.email === 'shishkarnem@gmail.com' || user.uid === '2A9a923z';
     
-    const newProfile: UserProfile = {
+    const newProfile: any = {
       uid: user.uid,
-      email: user.email || '',
-      displayName: user.displayName || 'Игрок',
+      email: user.email || `${user.uid}@placeholder.com`,
+      displayName: tgUser ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : (user.displayName || 'Игрок'),
       role: isSuperAdmin ? 'superadmin' : 'player',
-      balance: 100,
+      balance: isSuperAdmin ? 999000 : 100,
       referralCode,
       referralCount: 0,
       referralEarnings: 0,
@@ -127,10 +226,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       createdAt: Date.now(),
     };
 
+    if (tgUser?.photo_url || user.photoURL) {
+      newProfile.photoURL = tgUser?.photo_url || user.photoURL;
+    }
+    if (tgUser?.id) {
+      newProfile.telegramId = tgUser.id.toString();
+    }
+    if (referredBy) {
+      newProfile.referredBy = referredBy;
+    }
+
     try {
       await setDoc(userRef, newProfile);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setProfile(null);
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
     }
   };
 
@@ -143,14 +264,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const userRef = doc(db, 'users', user.uid);
     try {
+      // Update Firestore
       await setDoc(userRef, { balance: newBalance }, { merge: true });
+      
+      // Update Supabase
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase
+          .from('profiles')
+          .update({ balance: newBalance })
+          .eq('id', user.uid);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
+  const purchaseGames = async (gameIds: string[], totalPrice: number) => {
+    if (!user || !profile) return;
+    const userRef = doc(db, 'users', user.uid);
+    const newBalance = profile.balance - totalPrice;
+    const newPurchasedGames = [...(profile.purchasedGames || []), ...gameIds];
+    
+    try {
+      await setDoc(userRef, { 
+        balance: newBalance,
+        purchasedGames: Array.from(new Set(newPurchasedGames))
+      }, { merge: true });
+      
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase
+          .from('profiles')
+          .update({ balance: newBalance })
+          .eq('id', user.uid);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
+  const markGameAsPlayed = async (gameId: string) => {
+    if (!user || !profile) return;
+    const userRef = doc(db, 'users', user.uid);
+    const newPlayedGames = [...(profile.playedGames || []), gameId];
+    
+    try {
+      await setDoc(userRef, { 
+        playedGames: Array.from(new Set(newPlayedGames))
+      }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAuthReady, loginWithTelegram, updateBalance }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      loading, 
+      isAuthReady, 
+      loginWithTelegram, 
+      updateBalance, 
+      purchaseGames,
+      markGameAsPlayed,
+      linkTelegram,
+      unlinkTelegram,
+      changeGoogleAccount,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   );

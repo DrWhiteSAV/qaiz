@@ -27,7 +27,7 @@
         "title": { "type": "string" },
         "description": { "type": "string" },
         "authorId": { "type": "string" },
-        "mode": { "type": "string", "enum": ["human", "true", "light"] },
+        "mode": { "type": "string", "enum": ["human", "true", "lite"] },
         "difficulty": { "type": "string", "enum": ["dummy", "people", "genius", "god"] },
         "type": { "type": "string" },
         "topic": { "type": "string" },

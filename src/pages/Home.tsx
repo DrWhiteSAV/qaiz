@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
 import { AuthModal } from '../components/AuthModal';
+import { TopicCloud } from '../components/TopicCloud';
+import { GameStartModal } from '../components/GameStartModal';
 import { getSupabase } from '../supabase';
+import { TOPICS } from '../constants';
 import { 
   Search, 
   Zap, 
@@ -19,34 +23,15 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-const MODES = [
-  { id: 'human', name: 'Человечный', description: 'Авторские вопросы, ИИ проверяет ответ.', pricePerQuestion: 3 },
-  { id: 'true', name: 'Трушный', description: 'ИИ генерирует вопросы с фактчекингом.', pricePerQuestion: 2 },
-  { id: 'lite', name: 'Лайтовый', description: 'ИИ генерирует и проверяет всё.', pricePerQuestion: 1 },
-];
-
-const TOPICS = [
-  "История мира", "География", "Кинематограф", "Классическая музыка", "Современное искусство",
-  "Космос и астрономия", "Биология", "Химия", "Физика", "Литература",
-  "Спорт", "Видеоигры", "Технологии", "Автомобили", "Кулинария",
-  "Мода", "Архитектура", "Мифология", "Религии мира", "Психология",
-  "Экономика", "Политика", "Языки мира", "Животные", "Растения",
-  "Океанология", "Медицина", "Математика", "Философия", "Театр",
-  "Танцы", "Фотография", "Путешествия", "Знаменитости", "Мультфильмы",
-  "Комиксы", "Аниме", "Рок-музыка", "Поп-музыка", "Джаз",
-  "Интернет-мемы", "Криптовалюты", "Экология", "Право и законы", "Логические задачи",
-  "Загадки", "Пословицы и поговорки", "Изобретения", "Первооткрыватели", "Космонавтика"
-];
-
 const DIFFICULTIES = [
-  { id: 'dummy', name: 'Для чайников' },
+  { id: 'dummy', name: 'Для квакушек' },
   { id: 'people', name: 'Для людей' },
   { id: 'genius', name: 'Для гениев' },
   { id: 'god', name: 'Для богов' },
 ];
 
 export const HomePage = () => {
-  const { user } = useAuth();
+  const { user, profile, logout } = useAuth();
   const navigate = useNavigate();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<any>(null);
@@ -55,79 +40,96 @@ export const HomePage = () => {
   const [activeCategory, setActiveCategory] = useState<'all' | 'single' | 'multi' | 'offline'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  const handleModeSelect = (modeId: string) => {
+    playCroak();
+    if (modeId === 'human') {
+      navigate('/games?filter=paid&mode=human');
+    } else {
+      // For AI modes, we might want to show a specific UI or just filter
+      navigate(`/games?mode=${modeId}`);
+    }
+  };
+
+  const handleFreeGamesClick = () => {
+    playCroak();
+    navigate('/games?filter=free');
+  };
+
   const games = [
     {
       id: 'blitz',
-      title: 'Блиц-Квиз',
-      description: 'Быстрые вопросы на время. Проверь свою реакцию и знания.',
-      image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=400',
+      title: 'КвИИЗ',
+      description: 'Быстрые вопросы на время. Проверь свою эрудицию и смекалку.',
+      image: 'https://i.ibb.co/84X2Ry3L/kviiz.jpg',
       category: 'single',
-      questionCount: 20,
+      questionCount: 10,
       path: '/game/blitz',
       color: 'bg-yellow-500',
-      rules: 'У вас есть 15 секунд на каждый вопрос. Чем быстрее ответите, тем больше баллов.',
-      isCompleted: true
+      rules: 'Текстовый ввод ответов. У вас есть 60 секунд на каждый вопрос. Каждый вопрос создает и проверяет ИИ.',
     },
     {
       id: 'millionaire',
-      title: 'Миллионер',
-      description: 'Классическая игра. 15 вопросов на пути к миллиону.',
-      image: 'https://images.unsplash.com/photo-1518133910546-b6c2fb7d79e3?auto=format&fit=crop&q=80&w=400',
+      title: 'Квиллионер',
+      description: 'Кто хочет стать Квиллионером? 15 вопросов на пути к квиллиону.',
+      image: 'https://i.ibb.co/HpktcNw1/kvillioner.jpg',
       category: 'single',
       questionCount: 15,
       path: '/game/millionaire',
       color: 'bg-blue-600',
-      rules: 'Ответьте на 15 вопросов. Используйте подсказки: 50/50, звонок другу, помощь зала.',
-      isCompleted: false
+      rules: 'Ответьте на 15 вопросов. Используйте подсказки: 50/50 и Помощь ИИ.',
     },
     {
       id: '100to1',
-      title: '100 к 1',
+      title: 'Сто Квадному',
       description: 'Угадай самые популярные ответы людей на улице.',
-      image: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=400',
+      image: 'https://i.ibb.co/0VZmr4Y0/100kva.jpg',
       category: 'single',
-      questionCount: 30,
+      questionCount: 24,
       path: '/game/100to1',
       color: 'bg-orange-500',
       rules: 'Ваша задача — угадать наиболее распространенные ответы на вопросы.',
-      isCompleted: false
     },
     {
       id: 'whatwherewhen',
-      title: 'Что? Где? Когда?',
+      title: 'Что? Где? Квада?',
       description: 'Элитарный клуб знатоков. Логика и командная работа.',
-      image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&q=80&w=400',
+      image: 'https://i.ibb.co/9H5whFHw/cgk.jpg',
       category: 'single',
-      questionCount: 12,
+      questionCount: 11,
       path: '/game/whatwherewhen',
       color: 'bg-red-600',
       rules: 'Минута на обсуждение. Вопросы на логику и общую эрудицию.',
-      isCompleted: true
     },
     {
       id: 'melody',
-      title: 'Угадай мелодию',
+      title: 'Уквакай Мелодию',
       description: 'Музыкальный квиз. Угадай исполнителя по первым нотам.',
-      image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&q=80&w=400',
+      image: 'https://i.ibb.co/5hpYsS1C/ukvakai.jpg',
       category: 'single',
       questionCount: 25,
       path: '/game/melody',
       color: 'bg-purple-600',
       rules: 'Слушайте фрагмент мелодии и выбирайте правильный вариант ответа.',
-      isCompleted: false
     },
     {
       id: 'jeopardy',
-      title: 'Своя Игра',
-      description: 'Интеллектуальное казино.',
-      image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=400',
+      title: 'Своя Икра',
+      description: 'Интеллектуальное квазино.',
+      image: 'https://i.ibb.co/mVttkCpT/ikra.jpg',
       category: 'multi',
       questionCount: 76,
       path: '/game/jeopardy',
       color: 'bg-indigo-600',
       rules: 'Выбирайте темы и стоимость вопросов. Списание за игру.',
-      isMultiplayer: true,
-      isCompleted: false
     },
     {
       id: 'iqbox-online',
@@ -140,8 +142,7 @@ export const HomePage = () => {
       color: 'bg-emerald-600',
       rules: 'Мультиплеерный режим. 7 раундов по 7 вопросов. Темы: текстовые, аудио, видео, картинки. Списание за игру.',
       onlyHuman: true,
-      isMultiplayer: true,
-      isCompleted: false
+      comingSoon: true
     },
     {
       id: 'iqbox-offline',
@@ -152,7 +153,8 @@ export const HomePage = () => {
       questionCount: 57,
       path: '#',
       color: 'bg-rose-600',
-      rules: 'Оффлайн регистрация на игру в Невинномысске и Ставрополе.'
+      rules: 'Оффлайн регистрация на игру в Невинномысске и Ставрополе.',
+      comingSoon: true
     }
   ];
 
@@ -164,47 +166,59 @@ export const HomePage = () => {
   });
 
   return (
-    <div className="space-y-6 md:space-y-12 px-2 md:px-0">
-      <section className="text-center">
-        <div className="relative inline-block">
-          <img src="https://i.ibb.co/QFr4QMLy/qaiz.png" alt="Logo" className="mx-auto h-32 w-32 md:h-64 md:w-64 animate-bounce drop-shadow-[0_0_30px_rgba(131,196,46,0.6)]" />
-        </div>
-        <p className="mx-auto mt-4 md:mt-8 max-w-2xl text-xs md:text-lg text-foreground/80 font-medium">
-          Онлайн платформа для проведения онлайн-квизов на разные тематики в режиме одиночных игр и мультиплеера.
-        </p>
-        {!user && (
-          <button 
-            onClick={() => { playCroak(); setIsAuthModalOpen(true); }}
-            className="btn-primary mt-4 md:mt-8 px-6 md:px-12 py-2 md:py-4 text-sm md:text-xl"
-          >
-            Начать играть
-          </button>
-        )}
+    <div className="space-y-4 md:space-y-8 px-2 md:px-0">
+      <section className="text-center py-4 md:py-8 relative overflow-hidden">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ 
+            opacity: 1, 
+            scale: 1,
+            y: [0, -15, 0]
+          }}
+          transition={{ 
+            duration: 2, 
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="relative inline-block"
+        >
+          <div className="absolute inset-0 bg-primary/20 blur-[20px] rounded-full scale-75 opacity-50 dark:opacity-100" />
+          <img src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" alt="Logo" className="relative mx-auto h-32 w-32 md:h-64 md:w-64 drop-shadow-[0_0_15px_rgba(131,196,46,0.4)]" />
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.8 }}
+        >
+          <p className="mx-auto mt-2 md:mt-4 max-w-3xl text-lg md:text-3xl text-white font-black italic uppercase tracking-tighter leading-tight drop-shadow-lg">
+            Онлайн платформа для проведения онлайн-квизов на разные тематики в режиме одиночных игр и мультиплеера.
+          </p>
+          
+          {!user ? (
+            <button 
+              onClick={() => { playCroak(); setIsAuthModalOpen(true); }}
+              className="btn-primary mt-6 md:mt-8 px-10 md:px-16 py-4 md:py-6 text-lg md:text-2xl group relative overflow-hidden"
+            >
+              <span className="relative z-10">Начать играть</span>
+              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+            </button>
+          ) : (
+            <div className="mt-6 md:mt-8 flex flex-col items-center gap-4">
+              {!profile && (
+                <div className="flex items-center gap-3 text-primary animate-pulse">
+                  <Zap className="animate-bounce" />
+                  <span className="text-sm font-bold uppercase tracking-widest">Синхронизация профиля...</span>
+                </div>
+              )}
+            </div>
+          )}
+        </motion.div>
       </section>
 
       <div className="space-y-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap gap-2">
-            <CategoryButton active={activeCategory === 'all'} onClick={() => setActiveCategory('all')} label="Все" />
-            <CategoryButton active={activeCategory === 'single'} onClick={() => setActiveCategory('single')} label="Одиночные" />
-            <CategoryButton active={activeCategory === 'multi'} onClick={() => setActiveCategory('multi')} label="Мультиплеер" />
-            <CategoryButton active={activeCategory === 'offline'} onClick={() => setActiveCategory('offline')} label="Оффлайн" />
-          </div>
-          
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40" size={18} />
-            <input 
-              type="text" 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Поиск игр..."
-              className="w-full rounded-full border border-primary/20 bg-background/40 p-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary backdrop-blur-md"
-            />
-          </div>
-        </div>
-
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredGames.map(game => (
+          {games.map(game => (
             <GameCard key={game.id} {...game} onSelect={() => {
               if (game.category === 'offline') {
                 setOfflineGame(game);
@@ -307,10 +321,10 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-xl">
-      <div className="w-full max-w-lg space-y-6 rounded-3xl border border-primary/20 bg-background p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[90vh]">
+      <div className="w-full max-w-lg space-y-6 rounded-3xl border-2 border-primary bg-card p-6 md:p-10 shadow-[12px_12px_0px_0px_#0b1c1c] overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-primary">Запись на игру</h2>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-primary/10 transition-colors">
+          <button onClick={onClose} className="rounded-full p-2 hover:bg-primary/10 transition-colors text-primary">
             <X size={24} />
           </button>
         </div>
@@ -326,7 +340,7 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
                     setSelectedSession(session);
                     setStep('form');
                   }}
-                  className="flex w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4 hover:bg-primary/10 transition-all"
+                  className="flex w-full items-center justify-between rounded-2xl border-2 border-primary/10 bg-primary/5 p-4 hover:bg-primary/10 transition-all"
                 >
                   <div className="text-left">
                     <p className="font-bold text-primary">{session.city}</p>
@@ -348,7 +362,7 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
 
         {step === 'form' && (
           <form className="space-y-4" onSubmit={handleRegister}>
-            <div className="rounded-xl bg-primary/5 p-3 border border-primary/10 mb-4">
+            <div className="rounded-xl bg-primary/5 p-3 border-2 border-primary/10 mb-4">
               <p className="text-xs font-bold text-primary uppercase">{selectedSession.city} • {selectedSession.date}</p>
               {!selectedSession.registrationOpen && (
                 <p className="text-[10px] text-rose-500 mt-1 font-bold">Регистрация закрыта. Вы будете записаны в резерв.</p>
@@ -362,7 +376,7 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
                 type="text" 
                 value={formData.teamName}
                 onChange={e => setFormData({ ...formData, teamName: e.target.value })}
-                className="w-full rounded-xl border border-primary/10 bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                className="w-full rounded-xl border-2 border-primary/10 bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                 placeholder="Напр: Веселые лягушки" 
               />
             </div>
@@ -376,18 +390,18 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
                 max="10" 
                 value={formData.participants}
                 onChange={e => setFormData({ ...formData, participants: e.target.value })}
-                className="w-full rounded-xl border border-primary/10 bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                className="w-full rounded-xl border-2 border-primary/10 bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                 placeholder="От 1 до 10" 
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-primary/10 p-3">
+            <div className="flex items-center justify-between rounded-xl border-2 border-primary/10 p-3">
               <span className="text-xs font-bold text-foreground/60">Принимаем свободных игроков</span>
               <input 
                 type="checkbox" 
                 checked={formData.acceptFreePlayers}
                 onChange={e => setFormData({ ...formData, acceptFreePlayers: e.target.checked })}
-                className="h-5 w-5 rounded border-primary/20 bg-background text-primary focus:ring-primary" 
+                className="h-5 w-5 rounded border-primary/20 bg-card text-primary focus:ring-primary" 
               />
             </div>
 
@@ -396,7 +410,7 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
               <textarea 
                 value={formData.comment}
                 onChange={e => setFormData({ ...formData, comment: e.target.value })}
-                className="w-full rounded-xl border border-primary/10 bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
+                className="w-full rounded-xl border-2 border-primary/10 bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" 
                 rows={2}
               />
             </div>
@@ -425,168 +439,70 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
   );
 };
 
-const GameStartModal = ({ game, onClose, onStart }: any) => {
-  const [mode, setMode] = useState(game.onlyHuman ? 'human' : 'lite');
-  const [difficulty, setDifficulty] = useState('people');
-  const [selectedTopic, setSelectedTopic] = useState(TOPICS[0]);
-
-  const currentMode = MODES.find(m => m.id === mode);
-  const totalPrice = (currentMode?.pricePerQuestion || 0) * game.questionCount;
-
-  const showTopicSelection = (mode === 'true' || mode === 'lite') && 
-    ['blitz', 'millionaire', '100to1', 'whatwherewhen', 'melody', 'jeopardy'].includes(game.id);
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 p-4 backdrop-blur-xl">
-      <div className="w-full max-w-lg space-y-6 rounded-3xl border border-primary/20 bg-background p-6 md:p-10 shadow-2xl overflow-y-auto max-h-[95vh]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tighter text-primary">{game.title}</h2>
-            {game.isCompleted && (
-              <div className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-1 text-[10px] font-bold uppercase text-emerald-500">
-                <CheckCircle2 size={12} />
-                Пройдено
-              </div>
-            )}
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-primary/10 transition-colors">
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-primary/5 p-4 border border-primary/10">
-            <div className="flex items-center justify-between text-primary mb-2">
-              <div className="flex items-center gap-2">
-                <Info size={18} />
-                <span className="font-bold uppercase tracking-widest text-xs">Правила и списание</span>
-              </div>
-              <span className="text-xs font-bold">{game.questionCount} вопросов</span>
-            </div>
-            <p className="text-sm text-foreground/70">{game.rules}</p>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Режим игры</label>
-            <div className="grid grid-cols-3 gap-2">
-              {MODES.map(m => (
-                <button
-                  key={m.id}
-                  disabled={game.onlyHuman && m.id !== 'human'}
-                  onClick={() => setMode(m.id)}
-                  className={`flex flex-col items-center justify-center rounded-xl p-3 text-center transition-all ${
-                    mode === m.id ? 'bg-primary text-background shadow-lg' : 'bg-primary/5 text-primary hover:bg-primary/10'
-                  } ${game.onlyHuman && m.id !== 'human' ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}
-                >
-                  <span className="text-[10px] font-black uppercase leading-tight">{m.name}</span>
-                  <span className="mt-1 text-xs font-bold">{m.pricePerQuestion} ₽/вопр</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-foreground/40 italic">{currentMode?.description}</p>
-          </div>
-
-          {showTopicSelection && (
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Выберите тему</label>
-              <select 
-                value={selectedTopic}
-                onChange={(e) => setSelectedTopic(e.target.value)}
-                className="w-full rounded-xl border border-primary/10 bg-primary/5 p-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {TOPICS.map(topic => (
-                  <option key={topic} value={topic} className="bg-background text-foreground">{topic}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Сложность</label>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-              {DIFFICULTIES.map(d => (
-                <button
-                  key={d.id}
-                  onClick={() => setDifficulty(d.id)}
-                  className={`rounded-xl p-2 text-[10px] font-bold uppercase tracking-widest transition-all ${
-                    difficulty === d.id ? 'bg-primary text-background' : 'bg-primary/5 text-primary hover:bg-primary/10'
-                  }`}
-                >
-                  {d.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <button 
-          onClick={() => onStart({ mode, difficulty, price: totalPrice, topic: selectedTopic })}
-          className="btn-primary w-full py-4 text-xl"
-        >
-          Начать за {totalPrice} ₽
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const GameCard = ({ title, description, onSelect, image, color, questionCount, comingSoon, isMultiplayer }: any) => {
+const GameCard = ({ title, description, onSelect, image, color, questionCount, comingSoon }: any) => {
   const { user } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { playCroak } = useFrogSound();
 
   const handlePlay = () => {
+    if (comingSoon) return;
     playCroak();
     if (!user) {
       setIsAuthModalOpen(true);
-    } else if (!comingSoon) {
+    } else {
       onSelect();
     }
   };
 
   return (
-    <div 
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      whileHover={{ y: -8 }}
       onClick={handlePlay}
-      className={`group relative overflow-hidden border-glow bg-background/40 transition-all hover:bg-primary/10 backdrop-blur-sm cursor-pointer ${comingSoon ? 'opacity-70 grayscale' : ''}`}
+      className={`group relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/3 backdrop-blur-3xl transition-all hover:bg-white/10 cursor-pointer shadow-2xl ${comingSoon ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
     >
-      <div className="relative h-48 w-full overflow-hidden">
+      <div className="relative aspect-video w-full overflow-hidden">
         <img 
           src={image} 
           alt={title} 
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent opacity-60" />
-        <div className="absolute bottom-4 left-4 flex flex-col gap-2">
-          {isMultiplayer && (
-            <span className="w-fit rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-indigo-500/30">
-              Мультиплеер
-            </span>
-          )}
-          <span className="w-fit rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-background">
-            {questionCount} вопросов
-          </span>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
       </div>
       
-      <div className="p-6">
-        <h3 className="text-2xl font-black uppercase tracking-tighter text-primary title-glow leading-tight">{title}</h3>
-        <p className="mt-2 text-sm text-foreground/60 leading-tight line-clamp-2">{description}</p>
+      <div className="p-4 md:p-6">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs md:text-sm font-black uppercase tracking-widest text-white border border-white/20 shadow-lg">
+            {questionCount} вопросов
+          </span>
+          <span className="inline-flex rounded-full bg-[#83c42e] px-3 py-1 text-[10px] md:text-xs font-black uppercase tracking-widest text-[#0b1c1c] border border-[#0b1c1c]/20 shadow-lg">
+            1 ₽ / вопрос
+          </span>
+        </div>
+
+        <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-white title-glow leading-none mb-2">{title}</h3>
+        <p className="text-xs text-foreground/60 leading-relaxed line-clamp-2 font-medium">{description}</p>
         
-        <div className="mt-6 flex items-center justify-between">
-          <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-primary opacity-0 transition-opacity group-hover:opacity-100">
-            Играть <ChevronRight size={14} />
+        <div className="mt-4 md:mt-6 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white border border-white/40 rounded-full px-3 py-1 hover:bg-white/10 transition-all group-hover:translate-x-1 duration-300 shadow-sm">
+            Играть <ChevronRight size={14} strokeWidth={3} />
           </div>
+          <div className="h-0.5 w-8 rounded-full bg-white/20 group-hover:w-12 transition-all duration-500" />
         </div>
       </div>
 
       {comingSoon && (
-        <div className="absolute right-4 top-4 rounded-full bg-primary/20 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
-          Скоро
+        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[2px]">
+          <div className="rounded-full bg-primary px-6 py-2 text-sm font-black uppercase tracking-widest text-background shadow-xl">
+            Скоро
+          </div>
         </div>
       )}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-    </div>
+    </motion.div>
   );
 };
 

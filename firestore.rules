@@ -23,7 +23,7 @@
 //   - title: string (required, < 100 chars)
 //   - description: string (optional, < 1000 chars)
 //   - authorId: string (required, immutable)
-//   - mode: string (required, human/true/light)
+//   - mode: string (required, human/true/lite)
 //   - difficulty: string (required, dummy/people/genius/god)
 //   - type: string (required)
 //   - topic: string (required)
@@ -61,12 +61,14 @@ service cloud.firestore {
     
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "shishkarnem@gmail.com" && request.auth.token.email_verified == true));
+        ((request.auth.token.email == "shishkarnem@gmail.com" && request.auth.token.email_verified == true) ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'superadmin']));
     }
     
     function isAuthor() {
       return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'author';
     }
 
@@ -86,11 +88,11 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
 
-    function isValidUser(data) {
+    function isValidUser(data, userId) {
       return hasRequiredFields(['uid', 'email', 'role', 'balance', 'referralCode', 'createdAt']) &&
-             data.uid == request.auth.uid &&
+             data.uid == userId &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'author', 'player'] &&
+             data.role in ['admin', 'author', 'player', 'superadmin'] &&
              data.balance is number && data.balance >= 0 &&
              data.referralCode is string &&
              data.createdAt is number;
@@ -100,7 +102,7 @@ service cloud.firestore {
       return hasRequiredFields(['id', 'title', 'authorId', 'mode', 'difficulty', 'type', 'topic', 'isMultiplayer', 'costPerQuestion']) &&
              data.title is string && data.title.size() < 100 &&
              data.authorId == request.auth.uid &&
-             data.mode in ['human', 'true', 'light'] &&
+             data.mode in ['human', 'true', 'lite'] &&
              data.difficulty in ['dummy', 'people', 'genius', 'god'] &&
              data.costPerQuestion is number && data.costPerQuestion >= 0;
     }
@@ -111,9 +113,9 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+      allow create: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
                       (request.resource.data.role == 'player' || isAdmin());
-      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+      allow update: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
                       (isOwner(userId) && request.resource.data.role == resource.data.role || isAdmin());
     }
 

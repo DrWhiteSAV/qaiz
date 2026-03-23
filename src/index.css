@@ -1,53 +1,88 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #83c42e;
-  --color-primary-dark: #6aa125;
-  --color-primary-light: #a2d95e;
+  --color-primary: var(--primary);
   --color-background: var(--bg);
   --color-foreground: var(--fg);
+  --color-card: var(--card-bg);
+  --color-border: var(--card-border);
   
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 :root {
-  --bg: #f8fafc;
-  --fg: #0f172a;
-  --primary-glow: rgba(131, 196, 46, 0.2);
+  --bg: #83c42e;
+  --fg: #0b1c1c;
+  --primary: #0b1c1c;
+  --card-bg: #f4f1ee;
+  --card-border: #0b1c1c;
+  --primary-glow: rgba(11, 28, 28, 0.15);
+  --nav-bg: rgba(244, 241, 238, 0.95);
 }
 
 .dark {
-  --bg: #0b1c1c;
-  --fg: #ffffff;
-  --primary-glow: rgba(131, 196, 46, 0.5);
+  --bg: #020617;
+  --fg: #f8fafc;
+  --primary: #83c42e;
+  --card-bg: rgba(15, 23, 42, 0.7);
+  --card-border: rgba(131, 196, 46, 0.15);
+  --primary-glow: rgba(131, 196, 46, 0.3);
+  --nav-bg: rgba(15, 23, 42, 0.6);
 }
 
 @layer base {
   body {
-    @apply bg-background text-foreground font-sans antialiased transition-colors duration-300;
+    @apply bg-background text-foreground font-sans antialiased transition-colors duration-500;
+    background-image: 
+      radial-gradient(circle at 2px 2px, rgba(244, 241, 238, 0.2) 1px, transparent 0);
+    background-size: 32px 32px;
+    background-attachment: fixed;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-white font-black uppercase tracking-tighter drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)];
+  }
+
+  .dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+    @apply text-primary drop-shadow-none;
+  }
+  
+  .dark body {
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(131, 196, 46, 0.1) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(34, 197, 94, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(131, 196, 46, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, rgba(34, 197, 94, 0.08) 0px, transparent 50%);
+    background-size: 100% 100%;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply rounded-full bg-primary px-8 py-3 font-black uppercase tracking-tighter text-white transition-all hover:scale-105 hover:bg-primary-light active:scale-95 shadow-[0_0_20px_rgba(131,196,46,0.3)] hover:shadow-[0_0_30px_rgba(131,196,46,0.5)] border-2 border-primary-light/50;
+    @apply relative inline-flex items-center justify-center rounded-full bg-[#83c42e] px-10 py-4 text-sm font-black uppercase tracking-widest text-[#f4f1ee] transition-all hover:scale-105 hover:shadow-[8px_8px_0px_0px_rgba(11,28,28,0.2)] active:scale-95 disabled:opacity-50 border-2 border-[#0b1c1c];
+  }
+  
+  .dark .btn-primary {
+    @apply bg-[#83c42e] text-[#0b1c1c] border-transparent hover:shadow-[0_20px_40px_-10px_rgba(131,196,46,0.4)];
   }
   
   .border-glow {
-    @apply border-2 border-primary/40 shadow-[0_0_15px_var(--primary-glow)] rounded-3xl;
+    @apply border-2 shadow-[8px_8px_0px_0px_#0b1c1c] rounded-[2.5rem] backdrop-blur-2xl transition-all duration-500;
+    background-color: var(--card-bg);
+    border-color: var(--card-border);
   }
   
-  .text-gradient {
-    @apply bg-gradient-to-r from-primary via-primary-light to-primary bg-clip-text text-transparent;
-  }
-  
-  .bg-gradient-frog {
-    @apply bg-gradient-to-br from-primary/10 via-background to-primary/5;
+  .dark .border-glow {
+    @apply border shadow-[0_20px_50px_rgba(0,0,0,0.3)] border-primary/10;
   }
   
   .title-glow {
-    @apply text-primary drop-shadow-[0_0_10px_rgba(131,196,46,0.5)];
+    @apply font-black;
+  }
+  
+  .dark .title-glow {
+    @apply text-primary drop-shadow-[0_0_20px_rgba(131,196,46,0.4)];
   }
 }
 
@@ -61,10 +96,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-primary);
+  background: var(--primary);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-light);
+  opacity: 0.8;
 }

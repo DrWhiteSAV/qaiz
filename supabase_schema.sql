@@ -114,6 +114,13 @@ CREATE TABLE IF NOT EXISTS news (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 10. AI Prompts
+CREATE TABLE IF NOT EXISTS prompts (
+  game_id TEXT PRIMARY KEY,
+  content TEXT NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE games ENABLE ROW LEVEL SECURITY;
@@ -124,6 +131,7 @@ ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE offline_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE news ENABLE ROW LEVEL SECURITY;
+ALTER TABLE prompts ENABLE ROW LEVEL SECURITY;
 
 -- Policies
 CREATE POLICY "Public profiles are viewable by everyone" ON profiles FOR SELECT USING (true);
@@ -141,3 +149,10 @@ CREATE POLICY "Users can send messages" ON messages FOR INSERT WITH CHECK (auth.
 CREATE POLICY "Users can view own offline regs" ON offline_registrations FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can register offline" ON offline_registrations FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "News is viewable by everyone" ON news FOR SELECT USING (true);
+CREATE POLICY "Prompts are viewable by everyone" ON prompts FOR SELECT USING (true);
+CREATE POLICY "Only admins can manage prompts" ON prompts FOR ALL USING (
+  EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() AND (role = 'admin' OR role = 'superadmin')
+  )
+);

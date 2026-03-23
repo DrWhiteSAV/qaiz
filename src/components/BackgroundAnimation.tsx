@@ -44,9 +44,10 @@ export const BackgroundAnimation: React.FC = () => {
 
       draw() {
         if (!ctx) return;
+        const isDark = document.documentElement.classList.contains('dark');
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(131, 196, 46, 0.2)';
+        ctx.fillStyle = isDark ? 'rgba(131, 196, 46, 0.2)' : 'rgba(244, 241, 238, 0.4)';
         ctx.fill();
       }
     }
@@ -83,19 +84,20 @@ export const BackgroundAnimation: React.FC = () => {
 
       draw() {
         if (!ctx) return;
+        const isDark = document.documentElement.classList.contains('dark');
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.rotate(this.rotation);
         ctx.globalAlpha = 0.05;
         
         // Draw a simple frog shape
-        ctx.fillStyle = '#83c42e';
+        ctx.fillStyle = isDark ? '#83c42e' : '#f4f1ee';
         ctx.beginPath();
         ctx.ellipse(0, 0, this.size, this.size * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
         
         // Eyes
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = isDark ? '#ffffff' : '#0b1c1c';
         ctx.beginPath();
         ctx.arc(-this.size * 0.4, -this.size * 0.4, this.size * 0.2, 0, Math.PI * 2);
         ctx.arc(this.size * 0.4, -this.size * 0.4, this.size * 0.2, 0, Math.PI * 2);
@@ -114,8 +116,10 @@ export const BackgroundAnimation: React.FC = () => {
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      const isDark = document.documentElement.classList.contains('dark');
+
       // Draw connections (neurons)
-      ctx.strokeStyle = 'rgba(131, 196, 46, 0.05)';
+      ctx.strokeStyle = isDark ? 'rgba(131, 196, 46, 0.05)' : 'rgba(244, 241, 238, 0.1)';
       ctx.lineWidth = 0.5;
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
@@ -158,7 +162,6 @@ export const BackgroundAnimation: React.FC = () => {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-[-1]"
-      style={{ background: 'radial-gradient(circle at center, #0b1c1c 0%, #050a0a 100%)' }}
     />
   );
 };

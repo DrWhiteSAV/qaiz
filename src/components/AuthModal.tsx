@@ -39,13 +39,13 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-md border-glow bg-background p-4 md:p-8 shadow-2xl">
-        <button onClick={() => { playCroak(); onClose(); }} className="absolute right-2 top-2 md:right-4 md:top-4 text-foreground/60 hover:text-primary">
+      <div className="relative w-full max-w-md border-glow bg-card p-4 md:p-8 shadow-[12px_12px_0px_0px_#0b1c1c]">
+        <button onClick={() => { playCroak(); onClose(); }} className="absolute right-2 top-2 md:right-4 md:top-4 text-primary hover:scale-110 transition-transform">
           <X size={20} className="md:w-6 md:h-6" />
         </button>
         
         <div className="text-center">
-          <img src="https://i.ibb.co/Fcp02H0/61755067-2e42-4ae2-97de-7da4228654ef.png" alt="Logo" className="mx-auto h-12 w-12 md:h-20 md:w-20 drop-shadow-[0_0_10px_rgba(131,196,46,0.3)]" />
+          <img src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" alt="Logo" className="mx-auto h-12 w-12 md:h-20 md:w-20 drop-shadow-[0_0_10px_rgba(11,28,28,0.2)]" />
           <h2 className="mt-2 md:mt-4 text-xl md:text-3xl font-black uppercase tracking-tighter text-primary title-glow">Вход в Квайз</h2>
           <p className="mt-1 md:mt-2 text-[10px] md:text-base text-foreground/60">Войдите, чтобы начать игру и получать бонусы</p>
         </div>
@@ -54,7 +54,7 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
           <button 
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 md:gap-3 rounded-full border-2 border-primary/20 bg-primary/5 py-2 md:py-4 text-xs md:text-base font-bold transition-all hover:bg-primary/10 hover:border-primary/50 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 md:gap-3 rounded-full border-2 border-primary/20 bg-primary/5 py-2 md:py-4 text-xs md:text-base font-bold transition-all hover:bg-primary/10 hover:border-primary/50 disabled:opacity-50 text-primary"
           >
             <LogIn size={16} className="md:w-5 md:h-5" />
             {loading ? 'Загрузка...' : 'Войти через Google'}
@@ -62,7 +62,7 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
           
           <div className="relative py-2 md:py-4">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-primary/10"></div></div>
-            <div className="relative flex justify-center text-[8px] md:text-xs uppercase"><span className="bg-background px-2 text-foreground/40 tracking-widest">Или</span></div>
+            <div className="relative flex justify-center text-[8px] md:text-xs uppercase"><span className="bg-card px-2 text-foreground/40 tracking-widest">Или</span></div>
           </div>
 
           <button 

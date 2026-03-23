@@ -177,19 +177,10 @@ export function SocialPage() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
-      <div className="lg:col-span-1 space-y-6">
-        <div className="rounded-3xl border border-primary/20 bg-primary/5 p-6">
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-primary">Социальная сеть</h2>
-          <div className="mt-6 flex flex-col gap-2">
-            <TabButton active={activeTab === 'friends'} onClick={() => setActiveTab('friends')} icon={<Users size={20} />} label="Друзья" count={acceptedFriends.length} />
-            <TabButton active={activeTab === 'chats'} onClick={() => setActiveTab('chats')} icon={<MessageSquare size={20} />} label="Чаты" count={0} />
-            <TabButton active={activeTab === 'requests'} onClick={() => setActiveTab('requests')} icon={<UserPlus size={20} />} label="Заявки" count={pendingRequests.length} />
-            <TabButton active={activeTab === 'channels'} onClick={() => setActiveTab('channels')} icon={<Send size={20} />} label="Каналы" count={0} />
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-primary/20 bg-background p-6">
-          <h3 className="text-sm font-bold uppercase tracking-widest text-primary">Найти друзей</h3>
+      <div className="lg:col-span-1 flex flex-col gap-6">
+        {/* Find Friends - Top on mobile */}
+        <div className="order-1 lg:order-2 rounded-3xl border border-primary/20 bg-background p-6">
+          <h3 className="text-sm font-bold uppercase tracking-widest">Найти друзей</h3>
           <div className="mt-4 flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" size={18} />
@@ -233,6 +224,17 @@ export function SocialPage() {
             </div>
           )}
         </div>
+
+        {/* Navigation Tabs - Below search on mobile, horizontal row */}
+        <div className="order-2 lg:order-1 rounded-3xl border border-primary/20 bg-card p-6 shadow-sm">
+          <h2 className="text-xl font-black uppercase tracking-tighter">Социальная сеть</h2>
+          <div className="mt-6 flex flex-row lg:flex-col gap-2 overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+            <TabButton active={activeTab === 'friends'} onClick={() => setActiveTab('friends')} icon={<Users size={20} />} label="Друзья" count={acceptedFriends.length} />
+            <TabButton active={activeTab === 'chats'} onClick={() => setActiveTab('chats')} icon={<MessageSquare size={20} />} label="Чаты" count={0} />
+            <TabButton active={activeTab === 'requests'} onClick={() => setActiveTab('requests')} icon={<UserPlus size={20} />} label="Заявки" count={pendingRequests.length} />
+            <TabButton active={activeTab === 'channels'} onClick={() => setActiveTab('channels')} icon={<Send size={20} />} label="Каналы" count={0} />
+          </div>
+        </div>
       </div>
 
       <div className="lg:col-span-2">
@@ -249,7 +251,7 @@ export function SocialPage() {
                   {acceptedFriends.length > 0 ? (
                     <div className="mt-6 grid gap-4">
                       {acceptedFriends.map(friend => (
-                        <div key={friend.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4">
+                        <div key={friend.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-card p-4 shadow-sm">
                           <div className="flex items-center gap-4">
                             <img src={friend.profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.friend_id}`} alt="" className="h-12 w-12 rounded-full border-2 border-primary/20" />
                             <div>
@@ -294,7 +296,7 @@ export function SocialPage() {
                       {pendingRequests.length > 0 ? (
                         <div className="mt-6 grid gap-4">
                           {pendingRequests.map(request => (
-                            <div key={request.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4">
+                            <div key={request.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-card p-4 shadow-sm">
                               <div className="flex items-center gap-4">
                                 <img src={(request as any).user_profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${request.user_id}`} alt="" className="h-12 w-12 rounded-full border-2 border-primary/20" />
                                 <div>
@@ -355,17 +357,17 @@ export function SocialPage() {
                 <div className="flex-1 p-6 space-y-6">
                   <h3 className="text-xl font-bold">Наши социальные сети</h3>
                   <div className="grid gap-4">
-                    <a href="https://t.me/qaiz_game" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4 hover:bg-primary/10 transition-all">
+                    <a href="https://t.me/qaiz_AIbot" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4 hover:bg-primary/10 transition-all">
                       <div className="flex items-center gap-4">
                         <div className="rounded-full bg-sky-500/20 p-3 text-sky-500">
                           <Send size={24} />
                         </div>
                         <div>
-                          <p className="font-bold text-primary">Telegram Канал</p>
-                          <p className="text-xs text-foreground/60">Новости, обновления и анонсы игр</p>
+                          <p className="font-bold text-primary">Telegram Бот</p>
+                          <p className="text-xs text-foreground/60">Играйте прямо в Telegram</p>
                         </div>
                       </div>
-                      <span className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase text-primary">Подписаться</span>
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase text-primary">Перейти</span>
                     </a>
                     
                     <a href="https://vk.com/qaiz_game" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4 hover:bg-primary/10 transition-all">
@@ -395,16 +397,16 @@ function TabButton({ active, onClick, icon, label, count }: { active: boolean, o
   return (
     <button 
       onClick={onClick}
-      className={`flex items-center justify-between rounded-2xl p-4 transition-all ${
-        active ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'hover:bg-primary/10'
+      className={`flex flex-shrink-0 lg:w-full items-center justify-between rounded-2xl p-3 md:p-4 transition-all ${
+        active ? 'bg-primary text-background shadow-lg shadow-primary/20' : 'bg-primary/5 text-primary hover:bg-primary/10'
       }`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3">
         {icon}
-        <span className="font-bold uppercase tracking-widest text-sm">{label}</span>
+        <span className="text-[10px] md:text-sm font-bold uppercase tracking-widest whitespace-nowrap">{label}</span>
       </div>
       {count > 0 && (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${active ? 'bg-background text-primary' : 'bg-primary text-background'}`}>
+        <span className={`ml-2 rounded-full px-2 py-0.5 text-[8px] md:text-[10px] font-black ${active ? 'bg-background text-primary' : 'bg-primary text-background'}`}>
           {count}
         </span>
       )}

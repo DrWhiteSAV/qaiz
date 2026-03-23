@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { GameStartModal } from '../components/GameStartModal';
+import { useFrogSound } from '../hooks/useSound';
+import { getSupabase } from '../supabase';
 import { 
   Gamepad2, 
   Users, 
@@ -17,23 +20,27 @@ import {
 export function GamesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { playCroak } = useFrogSound();
   const [activeCategory, setActiveCategory] = useState<'all' | 'single' | 'multi' | 'offline'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedGame, setSelectedGame] = useState<any>(null);
 
   const games = [
     {
       id: 'blitz',
-      title: 'Блиц-Квиз',
-      description: '10 быстрых вопросов с текстовым вводом. Очки тают!',
+      title: 'КвИИЗ',
+      description: '10 быстрых вопросов с текстовым вводом. Очки тают! Все вопросы и ответы создает и проверяет ИИ.',
+      rules: 'У вас есть 60 секунд на каждый вопрос. Чем быстрее ответите, тем больше баллов. Все вопросы и ответы создает и проверяет ИИ.',
       icon: <Zap size={32} />,
       category: 'single',
       cost: 10,
       path: '/game/blitz',
-      color: 'bg-yellow-500'
+      color: 'bg-yellow-500',
+      questionCount: 10
     },
     {
       id: 'millionaire',
-      title: 'Миллионер',
+      title: 'Квиллионер',
       description: 'Классическая игра с 15 вопросами и подсказками.',
       icon: <Trophy size={32} />,
       category: 'single',
@@ -43,8 +50,8 @@ export function GamesPage() {
     },
     {
       id: '100to1',
-      title: '100 к 1',
-      description: 'Угадайте самые популярные ответы людей.',
+      title: 'Сто Квадному',
+      description: 'Угадайте 24 самых популярных ответа людей.',
       icon: <Users size={32} />,
       category: 'single',
       cost: 20,
@@ -53,8 +60,8 @@ export function GamesPage() {
     },
     {
       id: 'whatwherewhen',
-      title: 'Что? Где? Когда?',
-      description: 'Игра против телезрителей. 6 очков до победы.',
+      title: 'Что? Где? Квада?',
+      description: 'Игра против телезрителей. 11 вопросов до победы.',
       icon: <HelpCircle size={32} />,
       category: 'single',
       cost: 25,
@@ -63,7 +70,7 @@ export function GamesPage() {
     },
     {
       id: 'melody',
-      title: 'Угадай мелодию',
+      title: 'Уквадай Мелодию',
       description: 'Угадайте 10 мелодий на время.',
       icon: <Music size={32} />,
       category: 'single',
@@ -95,7 +102,7 @@ export function GamesPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-4xl font-black uppercase tracking-tighter text-primary">Игровой зал</h2>
+          <h2 className="text-2xl font-black uppercase tracking-tighter">Игровой зал</h2>
           <p className="mt-2 text-foreground/60">Выберите режим игры и начните побеждать</p>
         </div>
         
@@ -108,13 +115,13 @@ export function GamesPage() {
       </div>
 
       <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40" size={20} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/40" size={18} />
         <input 
           type="text" 
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder="Поиск игр..."
-          className="w-full rounded-2xl border border-primary/20 bg-background p-4 pl-12 text-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full rounded-2xl border border-primary/20 bg-background p-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
@@ -122,22 +129,22 @@ export function GamesPage() {
         {filteredGames.map(game => (
           <div 
             key={game.id}
-            onClick={() => !game.comingSoon && navigate(game.path)}
+            onClick={() => !game.comingSoon && setSelectedGame(game)}
             className={`group relative cursor-pointer overflow-hidden rounded-3xl border border-primary/20 bg-background p-8 shadow-xl transition-all hover:-translate-y-2 hover:border-primary/40 ${game.comingSoon ? 'opacity-70 grayscale' : ''}`}
           >
             <div className={`mb-6 flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-lg ${game.color}`}>
               {game.icon}
             </div>
             
-            <h3 className="text-2xl font-black uppercase tracking-tighter text-primary">{game.title}</h3>
+            <h3 className="text-2xl font-black uppercase tracking-tighter text-white drop-shadow-sm">{game.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-foreground/60">{game.description}</p>
             
             <div className="mt-8 flex items-center justify-between">
-              <div className="flex items-center gap-1 font-black text-primary">
+              <div className="flex items-center gap-1 font-black text-white drop-shadow-sm">
                 <Star size={16} className="fill-current" />
                 <span>{game.cost} ₽</span>
               </div>
-              <div className="flex items-center gap-1 text-sm font-bold uppercase tracking-widest text-primary opacity-0 transition-opacity group-hover:opacity-100">
+              <div className="flex items-center gap-1 text-sm font-bold uppercase tracking-widest text-white border border-white/40 rounded-full px-3 py-1 opacity-0 transition-all group-hover:opacity-100 hover:bg-white/10">
                 Играть <ChevronRight size={16} />
               </div>
             </div>
@@ -150,6 +157,40 @@ export function GamesPage() {
           </div>
         ))}
       </div>
+
+      {selectedGame && (
+        <GameStartModal 
+          game={selectedGame} 
+          onClose={() => setSelectedGame(null)} 
+          onStart={async (options: any) => {
+            playCroak();
+            
+            // Create game session in Supabase
+            if (user) {
+              try {
+                const supabase = getSupabase();
+                if (supabase) {
+                  await supabase.from('game_sessions').insert({
+                    user_id: user.uid,
+                    game_id: selectedGame.id,
+                    topic: options.topic || 'General',
+                    difficulty: options.difficulty,
+                    mode: options.mode,
+                    score: 0,
+                    status: 'started',
+                    price_paid: options.price,
+                    created_at: new Date().toISOString()
+                  });
+                }
+              } catch (error) {
+                console.error('Error creating game session:', error);
+              }
+            }
+
+            navigate(selectedGame.path, { state: options });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
-import { Trophy, Star, User, Zap, Gift, Gavel, Trash2, Info, X } from 'lucide-react';
+import { Trophy, Star, User, Zap, Gift, Gavel, Trash2, Info, X, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { saveGameSession } from '../supabase';
+import { geminiService } from '../services/gemini';
+import { balanceService } from '../services/balanceService';
+import { Loader2, Timer, Lightbulb, RotateCcw, Home } from 'lucide-react';
+import { GameError } from '../components/GameError';
 
 interface Question {
   id: string;
@@ -12,6 +16,8 @@ interface Question {
   value: number;
   question: string;
   answer: string;
+  hint?: string;
+  explanation?: string;
   isAnswered: boolean;
   type: 'normal' | 'cat' | 'auction';
 }
@@ -83,7 +89,11 @@ export const JeopardyGame: React.FC = () => {
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
   const [userAnswer, setUserAnswer] = useState('');
   const [showResult, setShowResult] = useState<'correct' | 'wrong' | null>(null);
-  const [gameState, setGameState] = useState<'lobby' | 'playing' | 'special' | 'final_bet' | 'final_elimination' | 'final_question' | 'game_over' | 'finished'>('lobby');
+  const [gameState, setGameState] = useState<'lobby' | 'playing' | 'special' | 'final_bet' | 'final_elimination' | 'final_question' | 'game_over' | 'finished' | 'feedback' | 'error'>('lobby');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [feedback, setFeedback] = useState<{ isCorrect: boolean; explanation: string; points?: number } | null>(null);
+  const [generatingQuestion, setGeneratingQuestion] = useState(false);
+  const [checking, setChecking] = useState(false);
   
   // Special Question States
   const [specialType, setSpecialType] = useState<'cat' | 'auction' | null>(null);
@@ -96,50 +106,114 @@ export const JeopardyGame: React.FC = () => {
 
   const [showCategoryInfo, setShowCategoryInfo] = useState<string | null>(null);
 
-  const generateRound = useCallback((roundNum: number) => {
-    if (roundNum > 3) return;
-    const config = ROUND_CONFIGS[roundNum - 1];
-    const names = CATEGORY_NAMES[roundNum - 1];
+  const [timeLeft, setTimeLeft] = useState(30);
+  const [showHint, setShowHint] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const startLevel = async () => {
+    if (!user || !profile) return;
     
-    const specialIndices = new Set<string>();
-    while (specialIndices.size < 3) {
-      const catIdx = Math.floor(Math.random() * 5);
-      const qIdx = Math.floor(Math.random() * 5);
-      specialIndices.add(`${catIdx}-${qIdx}`);
+    const cost = options.price || 40; 
+    if (profile.balance < cost) {
+      alert('Недостаточно средств на балансе!');
+      return;
     }
 
-    const newCategories = names.map((name, catIdx) => ({
-      name,
-      description: CATEGORY_DATA[name]?.description || 'Описание отсутствует',
-      questions: config.baseValues.map((val, qIdx) => {
-        const isSpecial = specialIndices.has(`${catIdx}-${qIdx}`);
-        let type: 'normal' | 'cat' | 'auction' = 'normal';
-        if (isSpecial) {
-          type = Math.random() > 0.5 ? 'cat' : 'auction';
-        }
-        return {
+    setGameState('playing');
+    setLoading(true);
+    try {
+      await generateRound(1);
+    } catch (error: any) {
+      console.error('Error starting jeopardy:', error);
+      setErrorMessage(error?.message || String(error));
+      setGameState('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateRound = useCallback(async (roundNum: number) => {
+    if (roundNum > 3) return;
+    setLoading(true);
+    try {
+      const topic = options.topic || 'Разные темы';
+      const difficulty = options.difficulty || 'people';
+      
+      const categoryNames = await geminiService.generateJeopardyCategories(topic, difficulty);
+      
+      const newCategories = categoryNames.map((name, catIdx) => ({
+        name: name,
+        description: `Вопросы по теме ${name}`,
+        questions: [100, 200, 300, 400, 500].map((val, qIdx) => ({
           id: `${roundNum}-${catIdx}-${qIdx}`,
           category: name,
-          value: val * config.multiplier,
-          question: `Вопрос из категории ${name} за ${val * config.multiplier}. (Демо-вопрос)`,
-          answer: 'ответ',
+          value: val * roundNum,
+          question: '',
+          answer: '',
           isAnswered: false,
-          type
-        };
-      })
-    }));
-    setCategories(newCategories);
-  }, []);
+          type: 'normal' as const
+        }))
+      }));
+      setCategories(newCategories);
+      setGameState('playing');
+    } catch (error) {
+      console.error('Error generating jeopardy categories:', error);
+      throw error; // Let startLevel handle it
+    } finally {
+      setLoading(false);
+    }
+  }, [options.topic, options.difficulty]);
 
   useEffect(() => {
-    if (gameState === 'playing' && categories.length === 0) {
-      generateRound(1);
+    let timer: NodeJS.Timeout;
+    if (selectedQuestion && !showResult && timeLeft > 0 && gameState !== 'special') {
+      timer = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0 && selectedQuestion && !showResult) {
+      if (userAnswer.trim()) {
+        submitAnswer();
+      } else {
+        setFeedback({ isCorrect: false, explanation: 'Время вышло! Вы не ввели ответ.', points: -selectedQuestion.value });
+        setGameState('feedback');
+      }
     }
-  }, [gameState, categories.length, generateRound]);
+    return () => clearInterval(timer);
+  }, [selectedQuestion, showResult, timeLeft, gameState]);
 
-  const handleQuestionSelect = (q: Question) => {
-    if (q.isAnswered) return;
+  const handleQuestionSelect = async (q: Question) => {
+    if (q.isAnswered || generatingQuestion) return;
     playCroak();
+    setSelectedQuestion(q);
+    
+    if (!q.question) {
+      setGeneratingQuestion(true);
+      try {
+        const difficulty = options.difficulty || 'people';
+        const data = await geminiService.generateQuestions(q.category, difficulty, 1, 'jeopardy');
+        const generatedQ = Array.isArray(data) ? data[0] : data;
+        
+        q.question = generatedQ.text || generatedQ.question;
+        q.answer = generatedQ.answer;
+        q.hint = generatedQ.hint;
+        q.explanation = generatedQ.explanation;
+        
+        setCategories(prev => prev.map(cat => ({
+          ...cat,
+          questions: cat.questions.map(quest => quest.id === q.id ? { ...q } : quest)
+        })));
+        setSelectedQuestion({ ...q });
+      } catch (error) {
+        console.error('Error generating question:', error);
+        setSelectedQuestion(null);
+        return;
+      } finally {
+        setGeneratingQuestion(false);
+      }
+    }
+
+    setTimeLeft(30);
+    setShowHint(false);
     
     if (q.type === 'normal') {
       setSelectedQuestion(q);
@@ -176,42 +250,92 @@ export const JeopardyGame: React.FC = () => {
   };
 
   const submitAnswer = async () => {
-    if (!selectedQuestion) return;
-    const isCorrect = userAnswer.toLowerCase().trim() === selectedQuestion.answer.toLowerCase().trim();
-    const q = selectedQuestion;
-    const playerIdx = answeringPlayerIndex!;
+    if (!selectedQuestion || checking) return;
+    setChecking(true);
     
-    if (gameState === 'final_question') {
-      const player = players[playerIdx];
-      const bet = finalBets[player.id] || 0;
-      const newScore = isCorrect ? player.score + bet : player.score - bet;
+    const questionCost = 1;
+    try {
+      // Deduct balance first
+      await balanceService.deductBalance(user!.uid, questionCost);
+
+      const result = await geminiService.checkAnswer(selectedQuestion.question, userAnswer, selectedQuestion.answer);
+      const isCorrect = result.isCorrect;
+      const q = selectedQuestion;
+      const playerIdx = answeringPlayerIndex!;
+      
+      if (gameState === 'final_question') {
+        const player = players[playerIdx];
+        const bet = finalBets[player.id] || 0;
+        const newScore = isCorrect ? player.score + bet : player.score - bet;
+        
+        setPlayers(prev => prev.map((p, idx) => {
+          if (idx === playerIdx) {
+            return { ...p, score: newScore };
+          }
+          return p;
+        }));
+
+        setFeedback({
+          isCorrect,
+          explanation: result.explanation || q.explanation || `Правильный ответ: ${q.answer}`,
+          points: isCorrect ? bet : -bet
+        });
+        setGameState('feedback');
+        return;
+      }
+
+      const value = q.type === 'auction' ? auctionBet : q.value;
       
       setPlayers(prev => prev.map((p, idx) => {
         if (idx === playerIdx) {
-          return { ...p, score: newScore };
+          return { ...p, score: isCorrect ? p.score + value : p.score - value };
         }
         return p;
       }));
 
-      setShowResult(isCorrect ? 'correct' : 'wrong');
+      setCategories(prev => prev.map(cat => ({
+        ...cat,
+        questions: cat.questions.map(question => question.id === q.id ? { ...question, isAnswered: true } : question)
+      })));
+
+      setFeedback({
+        isCorrect,
+        explanation: result.explanation || q.explanation || `Правильный ответ: ${q.answer}`,
+        points: isCorrect ? value : -value
+      });
+      setGameState('feedback');
+    } catch (error) {
+      console.error('Error checking answer:', error);
+      // Refund if AI check failed
+      await balanceService.addBalance(user!.uid, questionCost);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const handleContinue = async () => {
+    if (gameState === 'feedback') {
+      const playerIdx = answeringPlayerIndex!;
+      const isFinal = selectedQuestion?.id === 'final';
       
-      setTimeout(async () => {
-        setShowResult(null);
-        setUserAnswer('');
+      if (isFinal) {
+        setFeedback(null);
         if (playerIdx + 1 < players.length) {
           setAnsweringPlayerIndex(playerIdx + 1);
+          setGameState('final_question');
+          setUserAnswer('');
         } else {
           // Game Over - Save session
           if (user) {
             const userPlayer = players.find(p => p.id === '1');
-            const finalUserScore = userPlayer ? (playerIdx === 0 ? newScore : userPlayer.score) : 0;
+            const finalUserScore = userPlayer?.score || 0;
             
             await saveGameSession({
               userId: user.uid,
               gameId: 'jeopardy',
               score: finalUserScore,
-              totalQuestions: 75, // 3 rounds * 25 questions
-              correctAnswers: 0, // Complex to track in this game
+              totalQuestions: 75,
+              correctAnswers: 0,
               mode: options.mode,
               difficulty: options.difficulty,
               topic: options.topic || 'Разные',
@@ -222,32 +346,15 @@ export const JeopardyGame: React.FC = () => {
           setGameState('game_over');
           setSelectedQuestion(null);
         }
-      }, 2000);
-      return;
-    }
-
-    const value = q.type === 'auction' ? auctionBet : q.value;
-    
-    setPlayers(prev => prev.map((p, idx) => {
-      if (idx === playerIdx) {
-        return { ...p, score: isCorrect ? p.score + value : p.score - value };
+        return;
       }
-      return p;
-    }));
 
-    setShowResult(isCorrect ? 'correct' : 'wrong');
-    
-    setCategories(prev => prev.map(cat => ({
-      ...cat,
-      questions: cat.questions.map(question => question.id === q.id ? { ...question, isAnswered: true } : question)
-    })));
-
-    setTimeout(() => {
       setSelectedQuestion(null);
-      setShowResult(null);
       setGameState('playing');
       setSpecialType(null);
       setAnsweringPlayerIndex(null);
+      setUserAnswer('');
+      setFeedback(null);
       
       // Next player's turn to pick
       setCurrentPlayerIndex((currentPlayerIndex + 1) % players.length);
@@ -261,7 +368,7 @@ export const JeopardyGame: React.FC = () => {
           startFinalRound();
         }
       }
-    }, 2000);
+    }
   };
 
   const startFinalRound = () => {
@@ -296,14 +403,104 @@ export const JeopardyGame: React.FC = () => {
     }
   };
 
+  const difficultyNames: Record<string, string> = {
+    'dummy': 'Для чайников',
+    'people': 'Для людей',
+    'genius': 'Для гениев',
+    'god': 'Для богов'
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-4 md:space-y-8 px-2 md:px-0 pb-20">
+      <AnimatePresence>
+        {checking && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[400] flex flex-col items-center justify-center bg-background/90 backdrop-blur-md"
+          >
+            <motion.div
+              animate={{ 
+                scale: [1, 1.2, 1],
+                rotate: [0, 10, -10, 0]
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="relative"
+            >
+              <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
+              <img 
+                src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                alt="Logo" 
+                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                referrerPolicy="no-referrer"
+              />
+            </motion.div>
+            <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">
+              ИИ проверяет ваш ответ...
+            </p>
+          </motion.div>
+        )}
+
+        {gameState === 'feedback' && feedback && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-lg rounded-3xl border border-primary/20 bg-background p-8 shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center">
+                {feedback.isCorrect ? (
+                  <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20 text-green-500">
+                    <CheckCircle2 size={48} />
+                  </div>
+                ) : (
+                  <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 text-red-500">
+                    <XCircle size={48} />
+                  </div>
+                )}
+                
+                <h3 className={`text-3xl font-black uppercase tracking-tighter ${feedback.isCorrect ? 'text-green-500' : 'text-red-500'}`}>
+                  {feedback.isCorrect ? 'Правильно!' : 'Неверно!'}
+                </h3>
+                
+                <div className="mt-6 max-h-48 overflow-y-auto pr-2 text-sm leading-relaxed text-foreground/80">
+                  {feedback.explanation}
+                </div>
+
+                {feedback.points !== undefined && (
+                  <p className={`mt-2 text-2xl font-black ${feedback.points > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {feedback.points > 0 ? '+' : ''}{feedback.points} очков
+                  </p>
+                )}
+
+                <button
+                  onClick={handleContinue}
+                  className="mt-10 w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
+                >
+                  Продолжить
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="flex items-center justify-between border-glow bg-background/60 p-3 md:p-6 backdrop-blur-md">
         <div className="flex items-center gap-2 md:gap-4">
           <Star className="text-primary h-5 w-5 md:h-8 md:w-8" />
           <div>
-            <h1 className="text-xl md:text-3xl font-black uppercase tracking-tighter text-primary title-glow">Своя Игра</h1>
+            <h1 className="text-xl md:text-3xl font-black uppercase tracking-tighter text-primary title-glow">Своя Иква</h1>
             <p className="text-[8px] md:text-sm text-foreground/40 uppercase tracking-widest">Тур {round} • {ROUND_CONFIGS[round-1]?.description || 'Финал'}</p>
           </div>
         </div>
@@ -317,15 +514,69 @@ export const JeopardyGame: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex items-center gap-2">
+          <HelpCircle className="text-primary" size={20} />
+          <span className="text-sm font-bold uppercase tracking-wider text-primary/60">Тема:</span>
+          <span className="text-sm font-black uppercase tracking-wider text-primary">{options.topic || 'Разные'}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Zap className="text-primary" size={20} />
+          <span className="text-sm font-bold uppercase tracking-wider text-primary/60">Сложность:</span>
+          <span className="text-sm font-black uppercase tracking-wider text-primary">{difficultyNames[options.difficulty] || options.difficulty}</span>
+        </div>
+      </div>
+
       {gameState === 'lobby' && (
         <div className="flex flex-col items-center justify-center py-20 text-center space-y-8">
           <Trophy size={100} className="text-primary animate-pulse" />
           <h2 className="text-4xl font-black uppercase tracking-tighter text-primary">Готовы к игре?</h2>
-          <button onClick={() => setGameState('playing')} className="btn-primary px-12 py-4 text-xl">Начать Матч</button>
+          <button onClick={startLevel} className="btn-primary px-12 py-4 text-xl">Начать Матч</button>
         </div>
       )}
 
-      {gameState === 'playing' && (
+      {gameState === 'error' && (
+        <div className="flex min-h-[60vh] items-center justify-center p-4">
+          <GameError 
+            message={errorMessage}
+            onRetry={startLevel} 
+            onReturn={() => navigate('/')} 
+          />
+        </div>
+      )}
+
+      {gameState === 'playing' && loading && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm text-center p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ 
+              opacity: 1,
+              scale: [0.8, 1, 0.95, 1],
+              rotate: [0, 2, -2, 0]
+            }}
+            transition={{ 
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="relative w-full max-w-[70vw] aspect-square flex items-center justify-center"
+          >
+            <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
+            <img 
+              src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+              alt="Logo" 
+              className="relative w-full h-full object-contain drop-shadow-2xl"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-xl font-black text-primary animate-pulse uppercase tracking-widest">Генерация категорий...</p>
+        </div>
+        </div>
+      )}
+
+      {gameState === 'playing' && !loading && (
         <div className="grid grid-cols-1 gap-2 md:gap-4">
           {categories.map((category, catIdx) => (
             <div key={category.name} className="grid grid-cols-6 items-center gap-1 md:gap-4">
@@ -341,15 +592,15 @@ export const JeopardyGame: React.FC = () => {
               {category.questions.map((q, qIdx) => (
                 <button
                   key={q.id}
-                  disabled={q.isAnswered}
+                  disabled={q.isAnswered || generatingQuestion}
                   onClick={() => handleQuestionSelect(q)}
                   className={`h-10 md:h-20 border-glow text-xs md:text-3xl font-black transition-all ${
                     q.isAnswered 
                       ? 'bg-foreground/5 text-foreground/10 border-transparent' 
                       : 'bg-background/40 text-primary hover:bg-primary/20 hover:scale-105'
-                  }`}
+                  } flex items-center justify-center`}
                 >
-                  {q.isAnswered ? '✓' : q.value}
+                  {q.isAnswered ? '✓' : (generatingQuestion && selectedQuestion?.id === q.id ? <Loader2 className="animate-spin" /> : q.value)}
                 </button>
               ))}
             </div>
@@ -426,15 +677,35 @@ export const JeopardyGame: React.FC = () => {
         </div>
       )}
 
-      {/* Question Modal (Shared for all modes) */}
       <AnimatePresence>
         {selectedQuestion && gameState !== 'special' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[250] flex items-center justify-center bg-background/95 p-4 backdrop-blur-xl">
             <div className="w-full max-w-2xl space-y-8 text-center">
+              <div className="flex justify-between items-center px-4">
+                <div className="flex items-center gap-2 text-primary">
+                  <Timer size={24} className={timeLeft < 10 ? 'animate-pulse text-red-500' : ''} />
+                  <span className={`text-2xl font-black ${timeLeft < 10 ? 'text-red-500' : ''}`}>{timeLeft}с</span>
+                </div>
+                <button 
+                  onClick={() => setShowHint(true)}
+                  disabled={showHint}
+                  className="flex items-center gap-2 text-primary/60 hover:text-primary disabled:opacity-30"
+                >
+                  <Lightbulb size={24} />
+                  <span className="text-xs font-bold uppercase tracking-widest">Подсказка</span>
+                </button>
+              </div>
+
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-[0.3em] text-primary">{selectedQuestion.category} — {selectedQuestion.type === 'auction' ? auctionBet : selectedQuestion.value}</p>
-                <h2 className="text-2xl md:text-5xl font-bold leading-tight">{selectedQuestion.question}</h2>
+                <h2 className="text-xl md:text-3xl font-bold leading-tight">{selectedQuestion.question}</h2>
               </div>
+
+              {showHint && selectedQuestion.hint && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-primary/10 p-4 rounded-2xl border border-primary/20">
+                  <p className="text-sm italic text-primary/80">Подсказка: {selectedQuestion.hint}</p>
+                </motion.div>
+              )}
 
               {!showResult ? (
                 <div className="space-y-6">

@@ -4,9 +4,11 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  photoURL?: string;
   role: UserRole;
   balance: number;
   telegramId?: string;
+  telegramConfirmationCode?: string;
   referralCode: string;
   referredBy?: string;
   referralCount?: number;
@@ -15,9 +17,11 @@ export interface UserProfile {
   authorEarnings?: number;
   createdAt: number;
   city?: 'Невинномысск' | 'Ставрополь';
+  purchasedGames?: string[];
+  playedGames?: string[];
 }
 
-export type GameMode = 'human' | 'true' | 'light';
+export type GameMode = 'human' | 'true' | 'lite';
 export type Difficulty = 'dummy' | 'people' | 'genius' | 'god';
 
 export interface Game {
@@ -32,6 +36,7 @@ export interface Game {
   questions: Question[];
   isMultiplayer: boolean;
   costPerQuestion: number;
+  createdAt: number;
 }
 
 export interface Question {
@@ -43,6 +48,11 @@ export interface Question {
   mediaUrl?: string;
   mediaType?: 'image' | 'audio' | 'video';
   points?: number;
+  // For 100 to 1
+  answers?: { text: string; points: number }[];
+  // For Jeopardy
+  category?: string;
+  level?: number; // For Millionaire (1-15)
 }
 
 export interface GameSession {
@@ -61,9 +71,25 @@ export interface NewsPost {
   title: string;
   content: string;
   mediaUrls: string[];
-  platforms: string[];
+  mediaType: 'image' | 'video' | 'album';
+  platforms: ('app' | 'tg' | 'vk')[];
   scheduledAt?: number;
   createdAt: number;
+}
+
+export interface AdminSettings {
+  prompts: {
+    blitz: string;
+    millionaire: string;
+    '100to1': string;
+    whatwherewhen: string;
+    melody: string;
+    jeopardy: string;
+  };
+  tgBotToken?: string;
+  tgChannelId?: string;
+  vkAccessToken?: string;
+  vkGroupId?: string;
 }
 
 export interface GalleryAlbum {

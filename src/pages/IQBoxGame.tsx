@@ -86,16 +86,33 @@ export const IQBoxGame: React.FC = () => {
       </div>
 
       {gameState === 'waiting' ? (
-        <div className="flex flex-col items-center justify-center space-y-8 py-20 text-center">
-          <div className="relative">
-            <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-            <Box size={120} className="relative text-primary drop-shadow-[0_0_30px_rgba(131,196,46,0.5)]" />
-          </div>
+        <div className="flex flex-col items-center justify-center py-20 text-center space-y-8">
+          <motion.div
+            animate={{ 
+              scale: [1, 1.1, 1],
+              rotate: [0, 5, -5, 0]
+            }}
+            transition={{ 
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="relative"
+          >
+            <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
+            <img 
+              src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+              alt="Logo" 
+              className="relative h-24 w-24 rounded-2xl border-2 border-primary/30 object-cover shadow-xl"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
           <div className="space-y-4">
-            <h2 className="text-4xl font-black uppercase tracking-tighter text-primary">Ожидание игроков...</h2>
-            <p className="text-foreground/60">Для начала игры необходимо 4 участника</p>
+            <h2 className="text-4xl font-black uppercase tracking-tighter text-primary animate-pulse">Ожидание игроков...</h2>
+            <p className="text-foreground/60 uppercase tracking-widest text-xs">Для начала игры необходимо 4 участника</p>
           </div>
-          <button onClick={startMatch} className="btn-primary">
+          <button onClick={startMatch} className="btn-primary px-12 py-4 text-xl">
             Начать поиск (Демо)
           </button>
         </div>
