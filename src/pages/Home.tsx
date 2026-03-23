@@ -461,7 +461,7 @@ const GameCard = ({ title, description, onSelect, image, color, questionCount, c
       viewport={{ once: true }}
       whileHover={{ y: -8 }}
       onClick={handlePlay}
-      className={`group relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/3 backdrop-blur-3xl transition-all hover:bg-white/10 cursor-pointer shadow-2xl ${comingSoon ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
+      className={`group relative overflow-hidden rounded-[2rem] border border-[#0b1c1c]/10 bg-[#83c42e] dark:bg-white/3 backdrop-blur-3xl transition-all hover:bg-[#83c42e]/90 dark:hover:bg-white/10 cursor-pointer shadow-2xl ${comingSoon ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
     >
       <div className="relative aspect-video w-full overflow-hidden">
         <img 
@@ -475,22 +475,22 @@ const GameCard = ({ title, description, onSelect, image, color, questionCount, c
       
       <div className="p-4 md:p-6">
         <div className="mb-3 flex items-center gap-2">
-          <span className="inline-flex rounded-full bg-white/20 px-3 py-1 text-xs md:text-sm font-black uppercase tracking-widest text-white border border-white/20 shadow-lg">
+          <span className="inline-flex rounded-full bg-[#f4f1ee]/20 px-3 py-1 text-xs md:text-sm font-black uppercase tracking-widest text-[#f4f1ee] border border-[#f4f1ee]/20 shadow-lg">
             {questionCount} вопросов
           </span>
-          <span className="inline-flex rounded-full bg-[#83c42e] px-3 py-1 text-[10px] md:text-xs font-black uppercase tracking-widest text-[#0b1c1c] border border-[#0b1c1c]/20 shadow-lg">
+          <span className="inline-flex rounded-full bg-[#f4f1ee] px-3 py-1 text-[10px] md:text-xs font-black uppercase tracking-widest text-[#0b1c1c] border border-[#0b1c1c]/20 shadow-lg">
             1 ₽ / вопрос
           </span>
         </div>
 
-        <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-white title-glow leading-none mb-2">{title}</h3>
-        <p className="text-xs text-foreground/60 leading-relaxed line-clamp-2 font-medium">{description}</p>
+        <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-[#f4f1ee] dark:text-white title-glow leading-none mb-2">{title}</h3>
+        <p className="text-xs text-[#0b1c1c]/70 dark:text-foreground/60 leading-relaxed line-clamp-2 font-medium">{description}</p>
         
         <div className="mt-4 md:mt-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white border border-white/40 rounded-full px-3 py-1 hover:bg-white/10 transition-all group-hover:translate-x-1 duration-300 shadow-sm">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#f4f1ee] dark:text-white border border-[#f4f1ee]/40 dark:border-white/40 rounded-full px-3 py-1 hover:bg-[#f4f1ee]/10 dark:hover:bg-white/10 transition-all group-hover:translate-x-1 duration-300 shadow-sm">
             Играть <ChevronRight size={14} strokeWidth={3} />
           </div>
-          <div className="h-0.5 w-8 rounded-full bg-white/20 group-hover:w-12 transition-all duration-500" />
+          <div className="h-0.5 w-8 rounded-full bg-[#f4f1ee]/20 dark:bg-white/20 group-hover:w-12 transition-all duration-500" />
         </div>
       </div>
 

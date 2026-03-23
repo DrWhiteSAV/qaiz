@@ -66,7 +66,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
               <button
                 onClick={() => setPlayMode('single')}
                 className={`rounded-xl p-3 text-center transition-all border-2 ${
-                  playMode === 'single' ? 'bg-[#83c42e] text-[#f4f1ee] shadow-lg border-[#f4f1ee]' : 'bg-[#d1d9d5] text-[#0b1c1c] hover:bg-[#d1d9d5]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
+                  playMode === 'single' ? 'bg-[#83c42e] text-[#f4f1ee] shadow-lg border-[#f4f1ee]' : 'bg-[#f4f1ee] text-[#0b1c1c] hover:bg-[#f4f1ee]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
                 }`}
               >
                 <span className="text-xs font-black uppercase">Одиночная игра</span>
@@ -74,7 +74,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
               <button
                 onClick={() => setPlayMode('multi')}
                 className={`rounded-xl p-3 text-center transition-all border-2 ${
-                  playMode === 'multi' ? 'bg-[#83c42e] text-[#f4f1ee] shadow-lg border-[#f4f1ee]' : 'bg-[#d1d9d5] text-[#0b1c1c] hover:bg-[#d1d9d5]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
+                  playMode === 'multi' ? 'bg-[#83c42e] text-[#f4f1ee] shadow-lg border-[#f4f1ee]' : 'bg-[#f4f1ee] text-[#0b1c1c] hover:bg-[#f4f1ee]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
                 }`}
               >
                 <span className="text-xs font-black uppercase">Мультиплеер</span>
@@ -102,7 +102,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
                     value={customTopic}
                     onChange={(e) => setCustomTopic(e.target.value)}
                     placeholder="Напр: История Древнего Рима"
-                    className="w-full rounded-xl border-2 border-[#f4f1ee] bg-[#d1d9d5] dark:bg-white/10 p-4 pr-12 text-sm text-[#0b1c1c] dark:text-white placeholder:text-[#0b1c1c]/40 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#f4f1ee] transition-all"
+                    className="w-full rounded-xl border-2 border-[#f4f1ee] bg-[#f4f1ee] dark:bg-white/10 p-4 pr-12 text-sm text-[#0b1c1c] dark:text-white placeholder:text-[#0b1c1c]/40 dark:placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#f4f1ee] transition-all"
                   />
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#0b1c1c]/40 dark:text-white/40">
                     <HelpCircle size={18} />
@@ -120,7 +120,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
                   key={d.id}
                   onClick={() => setDifficulty(d.id)}
                   className={`rounded-xl p-2 text-[10px] font-bold uppercase tracking-widest transition-all border-2 ${
-                    difficulty === d.id ? 'bg-[#83c42e] text-[#f4f1ee] border-[#f4f1ee]' : 'bg-[#d1d9d5] text-[#0b1c1c] hover:bg-[#d1d9d5]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
+                    difficulty === d.id ? 'bg-[#83c42e] text-[#f4f1ee] border-[#f4f1ee]' : 'bg-[#f4f1ee] text-[#0b1c1c] hover:bg-[#f4f1ee]/80 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-transparent'
                   }`}
                 >
                   {d.name}

@@ -27,7 +27,7 @@ export const TopicCloud = ({ topics, selectedTopic, onSelect }: TopicCloudProps)
             className={`rounded-full px-3 py-1 font-bold transition-all hover:scale-110 active:scale-95 animate-in fade-in zoom-in duration-500 border-2 ${
               selectedTopic === topic 
                 ? 'bg-[#83c42e] text-[#f4f1ee] shadow-[4px_4px_0px_0px_#0b1c1c] z-10 scale-105 border-[#f4f1ee]' 
-                : 'bg-[#d1d9d5] dark:bg-white/10 text-[#0b1c1c] dark:text-white hover:bg-[#d1d9d5]/80 dark:hover:bg-white/20 border-transparent'
+                : 'bg-[#f4f1ee] dark:bg-white/10 text-[#0b1c1c] dark:text-white hover:bg-[#f4f1ee]/80 dark:hover:bg-white/20 border-transparent'
             }`}
             style={{
               fontSize: '10px', // Compact font size
