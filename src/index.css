@@ -9,6 +9,19 @@
   
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  @keyframes gradient-xy {
+    0%, 100% {
+      background-size: 400% 400%;
+      background-position: left center;
+    }
+    50% {
+      background-size: 400% 400%;
+      background-position: right center;
+    }
+  }
+  
+  --animate-gradient-xy: gradient-xy 3s ease infinite;
 }
 
 :root {

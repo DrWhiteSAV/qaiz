@@ -3,57 +3,109 @@ export const SHOP_ITEMS = [
     id: 'pack1', 
     title: 'Пак: Кино и Музыка', 
     author: 'Ivanov', 
-    price: 15, 
-    games: ['melody', 'blitz'], 
+    price: 20, 
+    games: ['melody'], 
     description: 'Лучшие вопросы про кино и музыку от нашего топового автора.', 
     format: 'Викторина с аудио и текстовым вводом', 
     isPassed: true,
-    type: 'Викторина',
-    difficulty: 'Средняя',
+    completedQuestions: 20,
+    totalQuestions: 20,
+    purchasesCount: 1250,
+    type: 'Уквакай Мелодию',
+    difficulty: 'people',
     createdAt: '20.03.2024',
-    costPerQuestion: 0.5
+    costPerQuestion: 1,
+    isAI: false
   },
   { 
     id: 'pack2', 
     title: 'Хардкор Интеллект', 
     author: 'Petrov', 
-    price: 25, 
-    games: ['jeopardy', 'whatwherewhen'], 
-    description: 'Для тех, кто не боится сложных вопросов.', 
+    price: 60, 
+    games: ['jeopardy'], 
+    description: 'Для тех, кто не боится сложных вопросов. Логика, интуиция и глубокие знания.', 
     format: 'Сложные логические вопросы и казино-ставки', 
     isPassed: false,
-    type: 'Интеллектуальная',
-    difficulty: 'Высокая',
+    completedQuestions: 5,
+    totalQuestions: 30,
+    purchasesCount: 850,
+    type: 'Своя Икра',
+    difficulty: 'genius',
     createdAt: '18.03.2024',
-    costPerQuestion: 1.2
+    costPerQuestion: 2,
+    isAI: false
   },
   { 
     id: 'pack3', 
     title: 'Вечеринка', 
     author: 'Sidorov', 
     price: 0, 
-    games: ['100to1', 'iqbox'], 
-    description: 'Бесплатный пак для веселой компании.', 
+    games: ['100to1'], 
+    description: 'Бесплатный пак для веселой компании. Простые и забавные вопросы.', 
     format: 'Командное соревнование и интуиция', 
     isPassed: false,
-    type: 'Развлекательная',
-    difficulty: 'Легкая',
+    completedQuestions: 0,
+    totalQuestions: 15,
+    purchasesCount: 5400,
+    type: '100 квадному',
+    difficulty: 'dummy',
     createdAt: '15.03.2024',
-    costPerQuestion: 0
+    costPerQuestion: 0,
+    isAI: true
   },
   { 
     id: 'pack4', 
     title: 'Квиллионер Плюс', 
     author: 'Ivanov', 
-    price: 10, 
+    price: 15, 
     games: ['millionaire'], 
-    description: 'Расширенная версия классики.', 
+    description: 'Расширенная версия классики с новыми каверзными вопросами.', 
     format: 'Классическая лестница вопросов с подсказками', 
     isPassed: true,
-    type: 'Классика',
-    difficulty: 'Средняя',
+    completedQuestions: 15,
+    totalQuestions: 15,
+    purchasesCount: 2100,
+    type: 'Квиллионер',
+    difficulty: 'people',
     createdAt: '10.03.2024',
-    costPerQuestion: 0.8
+    costPerQuestion: 1,
+    isAI: false
+  },
+  { 
+    id: 'pack5', 
+    title: 'Блиц-Опрос: Наука', 
+    author: 'Sidorov', 
+    price: 10, 
+    games: ['blitz'], 
+    description: 'Быстрые вопросы о науке и технологиях.', 
+    format: 'Скоростная викторина', 
+    isPassed: false,
+    completedQuestions: 0,
+    totalQuestions: 10,
+    purchasesCount: 320,
+    type: 'КвИИз',
+    difficulty: 'genius',
+    createdAt: '22.03.2024',
+    costPerQuestion: 1,
+    isAI: true
+  },
+  { 
+    id: 'pack6', 
+    title: 'Что? Где? Квада? - Классика', 
+    author: 'Petrov', 
+    price: 36, 
+    games: ['whatwherewhen'], 
+    description: 'Классические вопросы элитарного клуба.', 
+    format: 'Логические задачи', 
+    isPassed: false,
+    completedQuestions: 2,
+    totalQuestions: 12,
+    purchasesCount: 450,
+    type: 'Что Где Квада',
+    difficulty: 'god',
+    createdAt: '21.03.2024',
+    costPerQuestion: 2,
+    isAI: false
   },
 ];
 
@@ -67,7 +119,7 @@ export const TOPICS = [
   'Кинематограф СССР', 'Русская литература', 'История России', 'География России', 'Спорт в России',
   'Рок-музыка', 'Поп-музыка', 'Классическая музыка', 'Джаз', 'Хип-хоп',
   'Аниме', 'Настольные игры', 'Интернет-мемы', 'Криптовалюты', 'Экология',
-  'Загадки и логика', 'Математика', 'Физика', 'Химия'
+  'Загадки и логика', 'Математика', 'Физика', 'Химия', 'Биология'
 ];
 
 export const TOPIC_DESCRIPTIONS: Record<string, string> = {
@@ -123,8 +175,52 @@ export const TOPIC_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const DIFFICULTIES = [
-  { id: 'easy', name: 'Легкая', multiplier: 1, color: 'text-emerald-500' },
-  { id: 'medium', name: 'Средняя', multiplier: 1.5, color: 'text-yellow-500' },
-  { id: 'hard', name: 'Высокая', multiplier: 2, color: 'text-rose-500' },
-  { id: 'expert', name: 'Эксперт', multiplier: 3, color: 'text-purple-500' }
+  { id: 'dummy', name: 'ИИкра', multiplier: 1, color: 'text-emerald-500', level: '1/4', description: 'Самый простой уровень. Идеально для начала.' },
+  { id: 'people', name: 'Головастик', multiplier: 1.5, color: 'text-yellow-500', level: '2/4', description: 'Средний уровень. Требует базовых знаний.' },
+  { id: 'genius', name: 'Квант', multiplier: 2, color: 'text-rose-500', level: '3/4', description: 'Высокий уровень. Для опытных игроков.' },
+  { id: 'god', name: 'Ляга-омега', multiplier: 3, color: 'text-purple-500', level: '4/4', description: 'Экспертный уровень. Только для истинных знатоков.' }
+];
+
+export interface AITemplate {
+  id: string;
+  name: string;
+  avatar: string;
+  personality: string;
+  difficulty: 'dummy' | 'people' | 'genius' | 'god';
+  description: string;
+}
+
+export const AI_TEMPLATES: AITemplate[] = [
+  {
+    id: 'toad_professor',
+    name: 'Профессор Жаба',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=professor',
+    personality: 'Умный, вежливый, любит научные факты. Иногда занудствует.',
+    difficulty: 'god',
+    description: 'Знает всё обо всём. Почти не ошибается.'
+  },
+  {
+    id: 'toad_rebel',
+    name: 'Жаба-Бунтарь',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=rebel',
+    personality: 'Дерзкий, самоуверенный, использует сленг. Любит рисковать.',
+    difficulty: 'genius',
+    description: 'Очень умный, но иногда слишком самоуверен.'
+  },
+  {
+    id: 'toad_lucky',
+    name: 'Везучая Жаба',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=lucky',
+    personality: 'Оптимистичный, весёлый. Часто полагается на интуицию.',
+    difficulty: 'people',
+    description: 'Средний уровень. Ошибается как обычный человек.'
+  },
+  {
+    id: 'toad_newbie',
+    name: 'Жаба-Новичок',
+    avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=newbie',
+    personality: 'Скромный, немного пугливый. Часто сомневается в ответах.',
+    difficulty: 'dummy',
+    description: 'Часто ошибается, идеально для тренировки.'
+  }
 ];

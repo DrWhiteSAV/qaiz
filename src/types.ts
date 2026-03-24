@@ -36,6 +36,7 @@ export interface Game {
   questions: Question[];
   isMultiplayer: boolean;
   costPerQuestion: number;
+  isAI?: boolean;
   createdAt: number;
 }
 
@@ -49,10 +50,18 @@ export interface Question {
   mediaType?: 'image' | 'audio' | 'video';
   points?: number;
   // For 100 to 1
-  answers?: { text: string; points: number }[];
+  answers?: { text: string; points: number; hint?: string }[];
   // For Jeopardy
   category?: string;
   level?: number; // For Millionaire (1-15)
+  audioStart?: number;
+  audioEnd?: number;
+  // For What? Where? When?
+  viewerName?: string;
+  viewerAddress?: string;
+  // For Jeopardy
+  round?: number;
+  questionType?: 'normal' | 'cat_in_bag' | 'auction';
 }
 
 export interface GameSession {
@@ -79,12 +88,16 @@ export interface NewsPost {
 
 export interface AdminSettings {
   prompts: {
-    blitz: string;
-    millionaire: string;
-    '100to1': string;
-    whatwherewhen: string;
-    melody: string;
-    jeopardy: string;
+    jeopardy_categories: string;
+    blitz_questions: string;
+    millionaire_questions: string;
+    whatwherewhen_questions: string;
+    '100to1_questions': string;
+    jeopardy_questions: string;
+    normal_questions: string;
+    single_question: string;
+    check_answer: string;
+    ai_comment: string;
   };
   tgBotToken?: string;
   tgChannelId?: string;

@@ -50,6 +50,21 @@
         "startTime": { "type": "number" }
       },
       "required": ["id", "gameId", "players", "scores", "currentQuestionIndex", "status", "startTime"]
+    },
+    "GameProgress": {
+      "title": "Game Progress",
+      "description": "Unfinished game progress for a user",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "pack_id": { "type": "string" },
+        "game_type": { "type": "string" },
+        "current_step": { "type": "number" },
+        "total_steps": { "type": "number" },
+        "state": { "type": "object" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["user_id", "pack_id", "game_type", "current_step", "total_steps", "state", "updated_at"]
     }
   },
   "firestore": {
@@ -64,6 +79,10 @@
     "/sessions/{sessionId}": {
       "schema": "GameSession",
       "description": "Game sessions"
+    },
+    "/game_progress/{progressId}": {
+      "schema": "GameProgress",
+      "description": "User game progress"
     }
   }
 }

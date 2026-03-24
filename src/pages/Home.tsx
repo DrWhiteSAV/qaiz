@@ -24,10 +24,10 @@ import {
 } from 'lucide-react';
 
 const DIFFICULTIES = [
-  { id: 'dummy', name: 'Для квакушек' },
-  { id: 'people', name: 'Для людей' },
-  { id: 'genius', name: 'Для гениев' },
-  { id: 'god', name: 'Для богов' },
+  { id: 'dummy', name: 'ИИкра (1/4)' },
+  { id: 'people', name: 'Головастик (2/4)' },
+  { id: 'genius', name: 'Квант (3/4)' },
+  { id: 'god', name: 'Ляга-омега (4/4)' },
 ];
 
 export const HomePage = () => {
@@ -192,8 +192,36 @@ export const HomePage = () => {
           transition={{ delay: 0.3, duration: 0.8 }}
         >
           <p className="mx-auto mt-2 md:mt-4 max-w-3xl text-lg md:text-3xl text-white font-black italic uppercase tracking-tighter leading-tight drop-shadow-lg">
-            Онлайн платформа для проведения онлайн-квизов на разные тематики в режиме одиночных игр и мультиплеера.
+            ИИнтелектуальные игры на разные тематики в режимах: одиночный, против нейросети и мультиплеер (онлайн и оффлайн).
           </p>
+          
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <button 
+              onClick={() => { playCroak(); navigate('/games?filter=paid&mode=human'); }}
+              className="group relative flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 px-8 py-4 backdrop-blur-md transition-all hover:bg-white/20 hover:scale-105 active:scale-95"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-background shadow-lg group-hover:rotate-12 transition-transform">
+                <Star size={20} strokeWidth={3} />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary">Магазин</p>
+                <p className="text-sm font-black uppercase tracking-tighter text-white">Авторские игры</p>
+              </div>
+            </button>
+
+            <button 
+              onClick={() => { playCroak(); navigate('/games?filter=free'); }}
+              className="group relative flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 px-8 py-4 backdrop-blur-md transition-all hover:bg-white/20 hover:scale-105 active:scale-95"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-background shadow-lg group-hover:rotate-12 transition-transform">
+                <Zap size={20} strokeWidth={3} />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Халява</p>
+                <p className="text-sm font-black uppercase tracking-tighter text-white">Бесплатные игры</p>
+              </div>
+            </button>
+          </div>
           
           {!user ? (
             <button 
@@ -439,7 +467,7 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
   );
 };
 
-const GameCard = ({ title, description, onSelect, image, color, questionCount, comingSoon }: any) => {
+const GameCard = ({ id, title, description, onSelect, image, color, questionCount, comingSoon }: any) => {
   const { user } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { playCroak } = useFrogSound();
@@ -454,6 +482,12 @@ const GameCard = ({ title, description, onSelect, image, color, questionCount, c
     }
   };
 
+  const getCostPerQuestion = () => {
+    if (id === 'whatwherewhen') return 2;
+    if (id === 'melody') return 10;
+    return 1;
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -461,41 +495,49 @@ const GameCard = ({ title, description, onSelect, image, color, questionCount, c
       viewport={{ once: true }}
       whileHover={{ y: -8 }}
       onClick={handlePlay}
-      className={`group relative overflow-hidden rounded-[2rem] border border-[#0b1c1c]/10 bg-[#83c42e] dark:bg-white/3 backdrop-blur-3xl transition-all hover:bg-[#83c42e]/90 dark:hover:bg-white/10 cursor-pointer shadow-2xl ${comingSoon ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
+      className={`group relative overflow-hidden rounded-[2rem] border-2 border-transparent bg-white/5 backdrop-blur-3xl transition-all hover:bg-white/10 cursor-pointer shadow-2xl ${comingSoon ? 'opacity-70 grayscale cursor-not-allowed' : ''}`}
     >
-      <div className="relative aspect-video w-full overflow-hidden">
-        <img 
-          src={image} 
-          alt={title} 
-          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-          referrerPolicy="no-referrer"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
-      </div>
+      {/* Animated Gradient Border */}
+      <div className="absolute inset-0 rounded-[2rem] p-[2px] bg-gradient-to-r from-primary/50 via-white/20 to-primary/50 animate-gradient-xy opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       
-      <div className="p-4 md:p-6">
-        <div className="mb-3 flex items-center gap-2">
-          <span className="inline-flex rounded-full bg-[#f4f1ee]/20 px-3 py-1 text-xs md:text-sm font-black uppercase tracking-widest text-[#f4f1ee] border border-[#f4f1ee]/20 shadow-lg">
-            {questionCount} вопросов
-          </span>
-          <span className="inline-flex rounded-full bg-[#f4f1ee] px-3 py-1 text-[10px] md:text-xs font-black uppercase tracking-widest text-[#0b1c1c] border border-[#0b1c1c]/20 shadow-lg">
-            1 ₽ / вопрос
-          </span>
-        </div>
+      {/* Glowing Animation */}
+      <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-emerald-500/20 rounded-[2rem] blur-xl opacity-0 group-hover:opacity-100 animate-pulse transition-opacity duration-500" />
 
-        <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-[#f4f1ee] dark:text-white title-glow leading-none mb-2">{title}</h3>
-        <p className="text-xs text-[#0b1c1c]/70 dark:text-foreground/60 leading-relaxed line-clamp-2 font-medium">{description}</p>
+      <div className="relative z-10 h-full flex flex-col bg-card/40 rounded-[2rem] overflow-hidden">
+        <div className="relative aspect-video w-full overflow-hidden">
+          <img 
+            src={image} 
+            alt={title} 
+            className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-80 group-hover:opacity-100"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+        </div>
         
-        <div className="mt-4 md:mt-6 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#f4f1ee] dark:text-white border border-[#f4f1ee]/40 dark:border-white/40 rounded-full px-3 py-1 hover:bg-[#f4f1ee]/10 dark:hover:bg-white/10 transition-all group-hover:translate-x-1 duration-300 shadow-sm">
-            Играть <ChevronRight size={14} strokeWidth={3} />
+        <div className="p-4 md:p-6 flex-1 flex flex-col bg-white/5 backdrop-blur-md">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs md:text-sm font-black uppercase tracking-widest text-[#f4f1ee] border border-[#f4f1ee]/20 shadow-lg">
+              {questionCount} вопросов
+            </span>
+            <span className="inline-flex rounded-full bg-primary px-3 py-1 text-[10px] md:text-xs font-black uppercase tracking-widest text-background border border-background/20 shadow-lg">
+              {getCostPerQuestion()} ₽ / вопрос
+            </span>
           </div>
-          <div className="h-0.5 w-8 rounded-full bg-[#f4f1ee]/20 dark:bg-white/20 group-hover:w-12 transition-all duration-500" />
+
+          <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter text-white title-glow leading-none mb-2">{title}</h3>
+          <p className="text-xs text-white/60 leading-relaxed line-clamp-2 font-medium">{description}</p>
+          
+          <div className="mt-auto pt-4 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white border border-white/40 rounded-full px-3 py-1 hover:bg-white/10 transition-all group-hover:translate-x-1 duration-300 shadow-sm">
+              Играть <ChevronRight size={14} strokeWidth={3} />
+            </div>
+            <div className="h-0.5 w-8 rounded-full bg-white/20 group-hover:w-12 transition-all duration-500" />
+          </div>
         </div>
       </div>
 
       {comingSoon && (
-        <div className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-[2px]">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/40 backdrop-blur-[2px]">
           <div className="rounded-full bg-primary px-6 py-2 text-sm font-black uppercase tracking-widest text-background shadow-xl">
             Скоро
           </div>

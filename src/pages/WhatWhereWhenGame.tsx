@@ -2,10 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
-import { Timer, Send, AlertCircle, CheckCircle2, XCircle, Users, User, HelpCircle, Zap, Loader2 } from 'lucide-react';
+import { Timer, Send, AlertCircle, CheckCircle2, XCircle, Users, User, HelpCircle, Zap, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { saveGameSession } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
+import { SpinningTable } from '../components/SpinningTable';
+
+import { GameChat, ChatMessage } from '../components/GameChat';
+import { GameSubmissionModal } from '../components/GameSubmissionModal';
 
 export function WhatWhereWhenGame() {
   const { profile, user } = useAuth();
@@ -23,6 +27,90 @@ export function WhatWhereWhenGame() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [answeredIndices, setAnsweredIndices] = useState<number[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasProgress, setHasProgress] = useState(false);
+  const [showSubmission, setShowSubmission] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Load progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!user || !options.packId) return;
+      const progress = await getGameProgress(user.uid, options.packId, 'whatwherewhen');
+      if (progress) {
+        setHasProgress(true);
+      }
+    };
+    loadProgress();
+  }, [user, options.packId]);
+
+  // Save progress whenever state changes
+  useEffect(() => {
+    const saveProgress = async () => {
+      if (gameState === 'playing' && user && options.packId && questions.length > 0) {
+        await saveGameProgress({
+          userId: user.uid,
+          packId: options.packId,
+          gameType: 'whatwherewhen',
+          currentStep: expertScore + viewerScore,
+          totalSteps: 11,
+          state: {
+            expertScore,
+            viewerScore,
+            questions,
+            currentIndex,
+            answeredIndices,
+            chatMessages,
+            topic
+          }
+        });
+      }
+    };
+    saveProgress();
+  }, [expertScore, viewerScore, questions, currentIndex, answeredIndices, gameState, user, options.packId, chatMessages, topic]);
+
+  const handleResume = async () => {
+    if (!user || !options.packId) return;
+    setLoading(true);
+    try {
+      const progress = await getGameProgress(user.uid, options.packId, 'whatwherewhen');
+      if (progress && progress.state) {
+        const { expertScore, viewerScore, questions, currentIndex, answeredIndices, chatMessages, topic } = progress.state;
+        setExpertScore(expertScore);
+        setViewerScore(viewerScore);
+        setQuestions(questions);
+        setCurrentIndex(currentIndex);
+        setAnsweredIndices(answeredIndices);
+        setChatMessages(chatMessages || []);
+        setTopic(topic);
+        setGameState('playing');
+        setIsSpinning(true);
+        setTimeLeft(60);
+      } else {
+        startLevel();
+      }
+    } catch (error) {
+      console.error('Error resuming game:', error);
+      startLevel();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = (text: string) => {
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      senderId: '1',
+      senderName: profile?.displayName || 'Игрок 1',
+      text,
+      isBot: false,
+      timestamp: Date.now()
+    };
+    setChatMessages(prev => [...prev, newMessage]);
+  };
 
   useEffect(() => {
     if (options && gameState === 'loading' && questions.length === 0) {
@@ -44,6 +132,8 @@ export function WhatWhereWhenGame() {
     try {
       const generated = await geminiService.generateQuestions(topic, options.difficulty || 'genius', 11, 'whatwherewhen');
       setQuestions(generated);
+      setAnsweredIndices([]);
+      setIsSpinning(true);
       setGameState('playing');
       setTimeLeft(60);
     } catch (error) {
@@ -57,13 +147,14 @@ export function WhatWhereWhenGame() {
     setChecking(true);
     
     const currentQuestion = questions[currentIndex];
+    const questionCost = options.isPurchased ? 0 : 3;
+    if (questionCost > 0) {
+      await balanceService.deductBalance(user!.uid, questionCost);
+    }
+
     const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
     setFeedback(result);
     
-    // Deduct balance
-    const questionCost = 1;
-    await balanceService.deductBalance(user!.uid, questionCost);
-
     const newExpertScore = result.isCorrect ? expertScore + 1 : expertScore;
     const newViewerScore = !result.isCorrect ? viewerScore + 1 : viewerScore;
 
@@ -96,20 +187,36 @@ export function WhatWhereWhenGame() {
           pricePaid: options.price,
           isWin: expertScore >= 6
         });
+        if (options.packId) {
+          await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+        }
       }
       setGameState('result');
+      setShowSubmission(true);
     } else {
-      setCurrentIndex(i => i + 1);
+      setAnsweredIndices(prev => [...prev, currentIndex]);
+      
+      // Randomly pick next index from unasked
+      const unasked = Array.from({ length: 11 }, (_, i) => i).filter(i => !answeredIndices.includes(i) && i !== currentIndex);
+      if (unasked.length > 0) {
+        const nextIndex = unasked[Math.floor(Math.random() * unasked.length)];
+        setCurrentIndex(nextIndex);
+      } else {
+        // Fallback if somehow all are answered but game not over
+        setCurrentIndex(i => (i + 1) % 11);
+      }
+      
+      setIsSpinning(true);
       setTimeLeft(60);
       setGameState('playing');
     }
   };
 
   useEffect(() => {
-    if (gameState === 'playing' && timeLeft > 0 && !feedback && !checking) {
+    if (gameState === 'playing' && timeLeft > 0 && !feedback && !checking && !isSpinning) {
       const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
       return () => clearInterval(timer);
-    } else if (timeLeft === 0 && gameState === 'playing' && !feedback && !checking) {
+    } else if (timeLeft === 0 && gameState === 'playing' && !feedback && !checking && !isSpinning) {
       if (userAnswer.trim()) {
         handleAnswer();
       } else {
@@ -117,9 +224,21 @@ export function WhatWhereWhenGame() {
         setGameState('feedback');
       }
     }
-  }, [timeLeft, gameState, feedback, checking, userAnswer]);
+  }, [timeLeft, gameState, feedback, checking, userAnswer, isSpinning]);
 
-  if (gameState === 'setup') {
+  const handleGameSubmission = async (data: any) => {
+    // Logic to save game to shop
+    console.log('Submitting game to shop:', data);
+    setSubmitted(true);
+    setShowSubmission(false);
+  };
+
+  const handleCloseSubmission = () => {
+    // For "other 4", do nothing if closed
+    setShowSubmission(false);
+  };
+
+  if (gameState === 'setup' || (options && gameState === 'loading' && questions.length === 0)) {
     return (
       <div className="mx-auto max-w-2xl space-y-8 rounded-3xl border border-primary/20 bg-primary/5 p-8">
         <div className="text-center">
@@ -133,12 +252,26 @@ export function WhatWhereWhenGame() {
           placeholder="Тема игры..."
           className="w-full rounded-2xl border border-primary/20 bg-background p-4 focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <button 
-          onClick={startLevel}
-          className="w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
-        >
-          Начать игру
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          {hasProgress && (
+            <button 
+              onClick={handleResume} 
+              disabled={loading}
+              className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <RotateCcw size={24} />}
+              Продолжить
+            </button>
+          )}
+          <button 
+            onClick={startLevel}
+            disabled={loading}
+            className="flex-1 rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105 flex items-center justify-center gap-2"
+          >
+            {loading && !hasProgress && <Loader2 className="animate-spin" />}
+            Начать игру
+          </button>
+        </div>
       </div>
     );
   }
@@ -158,7 +291,7 @@ export function WhatWhereWhenGame() {
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className="relative w-full max-w-[70vw] aspect-square flex items-center justify-center"
+          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
         >
           <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
           <img 
@@ -179,11 +312,11 @@ export function WhatWhereWhenGame() {
   if (gameState === 'result') {
     const expertWon = expertScore >= 6;
     return (
-      <div className="mx-auto max-w-2xl rounded-3xl border border-primary/20 bg-primary/5 p-12 text-center">
+      <div className="mx-auto max-w-2xl rounded-3xl border border-primary/20 bg-primary/5 p-12 text-center space-y-8">
         <h2 className="text-5xl font-black uppercase tracking-tighter text-primary">
           {expertWon ? 'Знатоки победили!' : 'Телезрители победили!'}
         </h2>
-        <div className="mt-8 flex justify-center gap-12">
+        <div className="flex justify-center gap-12">
           <div className="text-center">
             <p className="text-sm uppercase tracking-widest text-foreground/60">Знатоки</p>
             <p className="text-6xl font-black text-primary">{expertScore}</p>
@@ -193,12 +326,35 @@ export function WhatWhereWhenGame() {
             <p className="text-6xl font-black text-red-500">{viewerScore}</p>
           </div>
         </div>
-        <button 
-          onClick={() => navigate('/')}
-          className="mt-12 rounded-full bg-primary px-12 py-4 text-xl font-black uppercase tracking-tighter text-background"
-        >
-          На главную
-        </button>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button 
+            onClick={async () => {
+              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+              window.location.reload();
+            }} 
+            className="btn-primary flex-1 py-4 text-xl"
+          >
+            Сыграть Еще
+          </button>
+          <button 
+            onClick={async () => {
+              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+              navigate('/');
+            }} 
+            className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
+          >
+            <Home size={24} />
+            В Меню
+          </button>
+        </div>
+
+        {showSubmission && !submitted && (
+          <GameSubmissionModal 
+            gameType="Что Где Квада"
+            onClose={handleCloseSubmission}
+            onSubmit={handleGameSubmission}
+          />
+        )}
       </div>
     );
   }
@@ -206,10 +362,10 @@ export function WhatWhereWhenGame() {
   const currentQuestion = questions[currentIndex];
 
   const difficultyNames: Record<string, string> = {
-    'dummy': 'Для чайников',
-    'people': 'Для людей',
-    'genius': 'Для гениев',
-    'god': 'Для богов'
+    'dummy': 'ИИкра',
+    'people': 'Головастик',
+    'genius': 'Квант',
+    'god': 'Ляга-омега'
   };
 
   return (
@@ -324,33 +480,74 @@ export function WhatWhereWhenGame() {
         </div>
       </div>
 
-      <div className="relative min-h-[300px] rounded-3xl border border-primary/20 bg-background p-10 shadow-xl">
-        <p className="text-sm font-bold uppercase tracking-widest text-primary mb-4">Вопрос от телезрителя:</p>
-        <h3 className="text-lg font-bold leading-tight sm:text-xl">{currentQuestion.text}</h3>
-        
-        <div className="mt-12 space-y-4">
-          <label className="text-sm font-bold uppercase tracking-widest text-primary">Ваш ответ</label>
-          <div className="flex gap-4">
-            <input 
-              type="text" 
-              value={userAnswer}
-              onChange={e => setUserAnswer(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAnswer()}
-              disabled={checking || gameState !== 'playing'}
-              placeholder="Введите ответ..."
-              className="flex-1 rounded-2xl border border-primary/20 bg-background p-4 focus:outline-none focus:ring-2 focus:ring-primary"
-              autoFocus
-            />
-            <button 
-              onClick={handleAnswer}
-              disabled={checking || !userAnswer || gameState !== 'playing'}
-              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-background transition-transform hover:scale-105 disabled:opacity-50"
+      <SpinningTable 
+        currentIndex={currentIndex} 
+        isSpinning={isSpinning} 
+        onSpinEnd={() => setIsSpinning(false)}
+        answeredIndices={answeredIndices}
+      />
+
+      <div className="relative min-h-[300px] rounded-3xl border border-primary/20 bg-background p-10 shadow-xl overflow-hidden">
+        <AnimatePresence mode="wait">
+          {isSpinning ? (
+            <motion.div
+              key="spinning-text"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex flex-col items-center justify-center h-full py-20 text-center"
             >
-              {checking ? <Loader2 className="animate-spin" /> : <Send size={24} />}
-            </button>
-          </div>
-        </div>
+              <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+              <p className="text-xl font-black uppercase tracking-widest text-primary animate-pulse">
+                Выбираем вопрос...
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="question-content"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+            >
+              <p className="text-sm font-bold uppercase tracking-widest text-primary mb-4">Вопрос от телезрителя:</p>
+              <h3 className="text-lg font-bold leading-tight sm:text-xl">{currentQuestion.text}</h3>
+              
+              <div className="mt-12 space-y-4">
+                <label className="text-sm font-bold uppercase tracking-widest text-primary">Ваш ответ</label>
+                <div className="flex gap-4">
+                  <input 
+                    type="text" 
+                    value={userAnswer}
+                    onChange={e => setUserAnswer(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAnswer()}
+                    disabled={checking || gameState !== 'playing'}
+                    placeholder="Введите ответ..."
+                    className="flex-1 rounded-2xl border border-primary/20 bg-background p-4 focus:outline-none focus:ring-2 focus:ring-primary"
+                    autoFocus
+                  />
+                  <button 
+                    onClick={handleAnswer}
+                    disabled={checking || !userAnswer || gameState !== 'playing'}
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-background transition-transform hover:scale-105 disabled:opacity-50"
+                  >
+                    {checking ? <Loader2 className="animate-spin" /> : <Send size={24} />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {options.playMode === 'multi' && (
+        <div className="h-[400px]">
+          <GameChat 
+            messages={chatMessages} 
+            onSendMessage={handleSendMessage} 
+            currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -115,7 +115,7 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-8">
-      <header className="flex flex-col items-center gap-6 rounded-[2rem] border border-primary/10 bg-white/80 backdrop-blur-md p-6 text-center sm:flex-row sm:text-left relative overflow-hidden shadow-sm">
+      <header className="flex flex-col items-center gap-6 rounded-[2rem] border border-primary/10 bg-card/40 backdrop-blur-md p-6 text-center sm:flex-row sm:text-left relative overflow-hidden shadow-sm">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2" />
         
         <div className="relative group">
@@ -190,7 +190,7 @@ export function ProfilePage() {
         <StatCard icon={<Share2 className="text-primary" />} label="Рефералов" value={`${profile.referralCount || 0}`} />
       </div>
 
-      <div className="rounded-[2rem] border-glow bg-background overflow-hidden shadow-xl">
+      <div className="rounded-[2rem] border border-primary/10 bg-card/40 backdrop-blur-md overflow-hidden shadow-xl">
         <div className="flex border-b border-primary/10 bg-primary/5 p-2 gap-2 overflow-x-auto">
           <TabButton active={activeTab === 'stats'} onClick={() => setActiveTab('stats')} label="Статистика" />
           <TabButton active={activeTab === 'history'} onClick={() => setActiveTab('history')} label="История" />
@@ -416,7 +416,7 @@ export function ProfilePage() {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode, label: string, value: string }) {
   return (
-    <div className="rounded-2xl border border-primary/10 bg-white/80 backdrop-blur-md p-4 transition-all hover:bg-white/90 group shadow-sm">
+    <div className="rounded-2xl border border-primary/10 bg-card/40 backdrop-blur-md p-4 transition-all hover:bg-card/60 group shadow-sm">
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-xl bg-primary/5 shadow-sm group-hover:scale-110 transition-transform">
           {icon}

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
-import { Timer, Box, Users, Trophy } from 'lucide-react';
+import { Timer, Box, Users, Trophy, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { saveGameSession } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
 import { useNavigate, useLocation } from 'react-router-dom';
+
+import { GameSubmissionModal } from '../components/GameSubmissionModal';
 
 interface Player {
   uid: string;
@@ -25,6 +27,67 @@ export const IQBoxGame: React.FC = () => {
   const [currentQuestion, setCurrentQuestion] = useState<string>('Загрузка вопроса...');
   const [timeLeft, setTimeLeft] = useState(30);
   const [score, setScore] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [hasProgress, setHasProgress] = useState(false);
+  const [showSubmission, setShowSubmission] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Load progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!user || !options.packId) return;
+      const progress = await getGameProgress(user.uid, options.packId, 'iqbox');
+      if (progress) {
+        setHasProgress(true);
+      }
+    };
+    loadProgress();
+  }, [user, options.packId]);
+
+  // Save progress whenever state changes
+  useEffect(() => {
+    const saveProgress = async () => {
+      if (gameState === 'playing' && user && options.packId && players.length > 0) {
+        await saveGameProgress({
+          userId: user.uid,
+          packId: options.packId,
+          gameType: 'iqbox',
+          currentStep: 1,
+          totalSteps: 1,
+          state: {
+            players,
+            currentQuestion,
+            timeLeft,
+            score
+          }
+        });
+      }
+    };
+    saveProgress();
+  }, [players, currentQuestion, timeLeft, score, gameState, user, options.packId]);
+
+  const handleResume = async () => {
+    if (!user || !options.packId) return;
+    setLoading(true);
+    try {
+      const progress = await getGameProgress(user.uid, options.packId, 'iqbox');
+      if (progress && progress.state) {
+        const { players, currentQuestion, timeLeft, score } = progress.state;
+        setPlayers(players);
+        setCurrentQuestion(currentQuestion);
+        setTimeLeft(timeLeft);
+        setScore(score);
+        setGameState('playing');
+      } else {
+        startMatch();
+      }
+    } catch (error) {
+      console.error('Error resuming game:', error);
+      startMatch();
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0) {
@@ -50,7 +113,23 @@ export const IQBoxGame: React.FC = () => {
         pricePaid: options.price,
         isWin: true // Demo always wins
       });
+      if (options.packId) {
+        await deleteGameProgress(user.uid, options.packId, 'iqbox');
+      }
     }
+    setShowSubmission(true);
+  };
+
+  const handleGameSubmission = async (data: any) => {
+    // Logic to save game to shop
+    console.log('Submitting game to shop:', data);
+    setSubmitted(true);
+    setShowSubmission(false);
+  };
+
+  const handleCloseSubmission = () => {
+    // For "other 4", do nothing if closed
+    setShowSubmission(false);
   };
 
   const startMatch = () => {
@@ -112,11 +191,28 @@ export const IQBoxGame: React.FC = () => {
             <h2 className="text-4xl font-black uppercase tracking-tighter text-primary animate-pulse">Ожидание игроков...</h2>
             <p className="text-foreground/60 uppercase tracking-widest text-xs">Для начала игры необходимо 4 участника</p>
           </div>
-          <button onClick={startMatch} className="btn-primary px-12 py-4 text-xl">
-            Начать поиск (Демо)
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4">
+            {hasProgress && (
+              <button 
+                onClick={handleResume} 
+                disabled={loading}
+                className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : <RotateCcw size={24} />}
+                Продолжить
+              </button>
+            )}
+            <button 
+              onClick={startMatch} 
+              disabled={loading}
+              className="btn-primary px-12 py-4 text-xl flex items-center gap-2"
+            >
+              {loading && !hasProgress && <Loader2 className="animate-spin" />}
+              Начать поиск (Демо)
+            </button>
+          </div>
         </div>
-      ) : (
+      ) : gameState === 'playing' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Question Area */}
           <div className="md:col-span-2 border-glow bg-background/40 p-8 text-center backdrop-blur-sm">
@@ -160,7 +256,7 @@ export const IQBoxGame: React.FC = () => {
             ))}
           </div>
         </div>
-      )}
+      ) : null}
 
       <AnimatePresence>
         {gameState === 'finished' && (
@@ -176,9 +272,35 @@ export const IQBoxGame: React.FC = () => {
                 <p className="text-2xl font-bold">Вы заняли 1 место</p>
                 <p className="text-foreground/60">+50 монет на баланс</p>
               </div>
-              <button onClick={() => window.location.reload()} className="btn-primary w-full">
-                Вернуться в лобби
-              </button>
+              <div className="flex flex-col gap-4">
+                <button 
+                  onClick={async () => {
+                    if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'iqbox');
+                    window.location.reload();
+                  }} 
+                  className="btn-primary w-full py-4 text-xl"
+                >
+                  Сыграть Еще
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'iqbox');
+                    navigate('/');
+                  }} 
+                  className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
+                >
+                  <Home size={24} />
+                  В Меню
+                </button>
+              </div>
+
+              {showSubmission && !submitted && (
+                <GameSubmissionModal 
+                  gameType="100 квадному"
+                  onClose={handleCloseSubmission}
+                  onSubmit={handleGameSubmission}
+                />
+              )}
             </div>
           </motion.div>
         )}

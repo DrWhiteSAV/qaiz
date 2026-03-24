@@ -8,6 +8,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { saveGameSession } from '../supabase';
 import { GameError } from '../components/GameError';
 
+import { GameChat, ChatMessage } from '../components/GameChat';
+
 export function BlitzGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +27,41 @@ export function BlitzGame() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [checkTimer, setCheckTimer] = useState(0);
+  const [checkInterval, setCheckInterval] = useState<any>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  const startCheckTimer = () => {
+    setCheckTimer(20);
+    if (checkInterval) clearInterval(checkInterval);
+    const interval = setInterval(() => {
+      setCheckTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    setCheckInterval(interval);
+  };
+
+  const stopCheckTimer = () => {
+    if (checkInterval) clearInterval(checkInterval);
+    setCheckTimer(0);
+  };
+
+  const handleSendMessage = (text: string) => {
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      senderId: '1',
+      senderName: profile?.displayName || 'Игрок 1',
+      text,
+      isBot: false,
+      timestamp: Date.now()
+    };
+    setChatMessages(prev => [...prev, newMessage]);
+  };
 
   useEffect(() => {
     if (options && gameState === 'loading' && questions.length === 0) {
@@ -58,13 +95,16 @@ export function BlitzGame() {
   const handleNext = useCallback(async () => {
     if (checking || gameState !== 'playing') return;
     setChecking(true);
+    startCheckTimer();
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = 1;
+    const questionCost = options.isPurchased ? 0 : 3;
 
     try {
       // Deduct balance first
-      await balanceService.deductBalance(user!.uid, questionCost);
+      if (questionCost > 0) {
+        await balanceService.deductBalance(user!.uid, questionCost);
+      }
       
       const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
       
@@ -72,10 +112,14 @@ export function BlitzGame() {
       if (result.isCorrect) setScore(s => s + 1);
       
       setGameState('feedback');
+      stopCheckTimer();
     } catch (error) {
       console.error('Error checking answer:', error);
       // Refund if AI check failed
-      await balanceService.addBalance(user!.uid, questionCost);
+      if (questionCost > 0) {
+        await balanceService.addBalance(user!.uid, questionCost);
+      }
+      stopCheckTimer();
     } finally {
       setChecking(false);
     }
@@ -186,7 +230,7 @@ export function BlitzGame() {
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className="relative w-full max-w-[70vw] aspect-square flex items-center justify-center"
+          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
         >
           <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
           <img 
@@ -239,10 +283,10 @@ export function BlitzGame() {
   const currentQuestion = questions[currentIndex];
 
   const difficultyNames: Record<string, string> = {
-    'dummy': 'Для чайников',
-    'people': 'Для людей',
-    'genius': 'Для гениев',
-    'god': 'Для богов'
+    'dummy': 'ИИкра',
+    'people': 'Головастик',
+    'genius': 'Квант',
+    'god': 'Ляга-омега'
   };
 
   return (
@@ -276,8 +320,31 @@ export function BlitzGame() {
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">
-              ИИ проверяет ваш ответ...
+              ИИ проверяет ваш ответ... ({checkTimer}с)
             </p>
+            {checkTimer === 0 && (
+              <div className="mt-8 text-center space-y-4">
+                <p className="text-sm text-red-500 font-bold uppercase tracking-widest">ИИ Немного тупит, надо повторить</p>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => handleNext()}
+                    className="px-8 py-3 bg-primary text-background rounded-full font-black uppercase tracking-tighter hover:scale-105 transition-transform"
+                  >
+                    Еще раз
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setChecking(false);
+                      setFeedback({ isCorrect: false, explanation: 'Проверка пропущена пользователем.' });
+                      setGameState('feedback');
+                    }}
+                    className="px-8 py-3 bg-primary/10 text-primary rounded-full font-black uppercase tracking-tighter hover:bg-primary/20 transition-all"
+                  >
+                    Пропустить
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -374,6 +441,16 @@ export function BlitzGame() {
           </div>
         </div>
       </div>
+
+      {options.playMode === 'multi' && (
+        <div className="h-[400px]">
+          <GameChat 
+            messages={chatMessages} 
+            onSendMessage={handleSendMessage} 
+            currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+          />
+        </div>
+      )}
     </div>
   );
 }

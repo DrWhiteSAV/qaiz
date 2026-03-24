@@ -5,8 +5,12 @@ import { balanceService } from '../services/balanceService';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { saveGameSession } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
 import { GameError } from '../components/GameError';
+
+import { GameChat, ChatMessage } from '../components/GameChat';
+
+import { GameSubmissionModal } from '../components/GameSubmissionModal';
 
 const PRIZES = [
   100, 200, 300, 500, 1000, // 5: Safety net
@@ -18,7 +22,7 @@ export function MillionaireGame() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const options = location.state || { mode: 'lite', difficulty: 'people', price: 30 };
+  const options = location.state || { mode: 'lite', difficulty: 'people', price: 30, packId: 'pack4' };
   
   const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'feedback' | 'result' | 'error'>('setup');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -29,9 +33,104 @@ export function MillionaireGame() {
   const [score, setScore] = useState(0);
   const [feedback, setFeedback] = useState<{ isCorrect: boolean, explanation: string } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [checkTimer, setCheckTimer] = useState(0);
+  const [checkInterval, setCheckInterval] = useState<any>(null);
   const [hints, setHints] = useState({ fiftyFifty: true, aiHint: true });
+
+  const startCheckTimer = () => {
+    setCheckTimer(20);
+    if (checkInterval) clearInterval(checkInterval);
+    const interval = setInterval(() => {
+      setCheckTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    setCheckInterval(interval);
+  };
+
+  const stopCheckTimer = () => {
+    if (checkInterval) clearInterval(checkInterval);
+    setCheckTimer(0);
+  };
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
   const [aiHintText, setAiHintText] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [hasProgress, setHasProgress] = useState(false);
+  const [showSubmission, setShowSubmission] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  // Load progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!user || !options.packId) return;
+      const progress = await getGameProgress(user.uid, options.packId, 'millionaire');
+      if (progress) {
+        setHasProgress(true);
+      }
+    };
+    loadProgress();
+  }, [user, options.packId]);
+
+  // Save progress whenever state changes
+  useEffect(() => {
+    const saveProgress = async () => {
+      if (gameState === 'playing' && user && options.packId && questions.length > 0) {
+        await saveGameProgress({
+          userId: user.uid,
+          packId: options.packId,
+          gameType: 'millionaire',
+          currentStep: currentIndex,
+          totalSteps: 15,
+          state: {
+            questions,
+            currentIndex,
+            hints,
+            score,
+            topic
+          }
+        });
+      }
+    };
+    saveProgress();
+  }, [currentIndex, hints, score, gameState, questions, user, options.packId, topic]);
+
+  const handleResume = async () => {
+    if (!user || !options.packId) return;
+    setGameState('loading');
+    try {
+      const progress = await getGameProgress(user.uid, options.packId, 'millionaire');
+      if (progress && progress.state) {
+        const { questions, currentIndex, hints, score, topic } = progress.state;
+        setQuestions(questions);
+        setCurrentIndex(currentIndex);
+        setHints(hints);
+        setScore(score);
+        setTopic(topic);
+        setGameState('playing');
+      } else {
+        startLevel();
+      }
+    } catch (error) {
+      console.error('Error resuming game:', error);
+      startLevel();
+    }
+  };
+
+  const handleSendMessage = (text: string) => {
+    const newMessage: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      senderId: '1',
+      senderName: profile?.displayName || 'Игрок 1',
+      text,
+      isBot: false,
+      timestamp: Date.now()
+    };
+    setChatMessages(prev => [...prev, newMessage]);
+  };
 
   const startLevel = async () => {
     if (!user || !profile) return;
@@ -62,13 +161,16 @@ export function MillionaireGame() {
     if (feedback || selectedOption || gameState !== 'playing' || checking) return;
     setSelectedOption(option);
     setChecking(true);
+    startCheckTimer();
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = 1;
+    const questionCost = options.isPurchased ? 0 : 3;
     
     try {
       // Deduct balance first
-      await balanceService.deductBalance(user!.uid, questionCost);
+      if (questionCost > 0) {
+        await balanceService.deductBalance(user!.uid, questionCost);
+      }
       
       const result = await geminiService.checkAnswer(currentQuestion.text, option, currentQuestion.correctAnswer);
       const isCorrect = result.isCorrect;
@@ -79,11 +181,15 @@ export function MillionaireGame() {
       });
 
       setGameState('feedback');
+      stopCheckTimer();
     } catch (error) {
       console.error('Error checking answer:', error);
       // Refund if AI check failed
-      await balanceService.addBalance(user!.uid, questionCost);
+      if (questionCost > 0) {
+        await balanceService.addBalance(user!.uid, questionCost);
+      }
       setSelectedOption(null);
+      stopCheckTimer();
     } finally {
       setChecking(false);
     }
@@ -134,8 +240,27 @@ export function MillionaireGame() {
         pricePaid: options.price,
         isWin: isWin
       });
+      if (options.packId) {
+        await deleteGameProgress(user.uid, options.packId, 'millionaire');
+      }
     }
     setGameState('result');
+    setShowSubmission(true);
+  };
+
+  const handleGameSubmission = async (data: any) => {
+    // Logic to save game to shop
+    console.log('Submitting game to shop:', data);
+    setSubmitted(true);
+    setShowSubmission(false);
+    // In a real app, this would call a service to save to Supabase/Firestore
+  };
+
+  const handleCloseSubmission = () => {
+    // If closed without info, add automatically as free for Millionaire
+    console.log('Submission closed, adding automatically as free');
+    setSubmitted(true);
+    setShowSubmission(false);
   };
 
   const useFiftyFifty = () => {
@@ -170,12 +295,23 @@ export function MillionaireGame() {
           placeholder="Тема игры..."
           className="w-full rounded-2xl border border-primary/20 bg-background p-4 focus:outline-none focus:ring-2 focus:ring-primary"
         />
-        <button 
-          onClick={startLevel}
-          className="w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
-        >
-          Начать игру
-        </button>
+        <div className="flex flex-col gap-4">
+          <button 
+            onClick={startLevel}
+            className="w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
+          >
+            Начать новую игру
+          </button>
+          {hasProgress && (
+            <button 
+              onClick={handleResume}
+              className="w-full rounded-full border-2 border-primary py-4 text-xl font-black uppercase tracking-tighter text-primary transition-transform hover:scale-105 flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={24} />
+              Продолжить игру
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -195,7 +331,7 @@ export function MillionaireGame() {
             repeat: Infinity,
             ease: "easeInOut"
           }}
-          className="relative w-full max-w-[70vw] aspect-square flex items-center justify-center"
+          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
         >
           <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
           <img 
@@ -237,18 +373,19 @@ export function MillionaireGame() {
         >
           На главную
         </button>
+
+        {showSubmission && !submitted && (
+          <GameSubmissionModal 
+            gameType="Квиллионер"
+            onClose={handleCloseSubmission}
+            onSubmit={handleGameSubmission}
+          />
+        )}
       </div>
     );
   }
 
   const currentQuestion = questions[currentIndex];
-
-  const difficultyNames: Record<string, string> = {
-    'dummy': 'Для чайников',
-    'people': 'Для людей',
-    'genius': 'Для гениев',
-    'god': 'Для богов'
-  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -281,8 +418,31 @@ export function MillionaireGame() {
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">
-              ИИ проверяет ваш ответ...
+              ИИ проверяет ваш ответ... ({checkTimer}с)
             </p>
+            {checkTimer === 0 && (
+              <div className="mt-8 text-center space-y-4">
+                <p className="text-sm text-red-500 font-bold uppercase tracking-widest">ИИ Немного тупит, надо повторить</p>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => handleOptionClick(selectedOption!)}
+                    className="px-8 py-3 bg-primary text-background rounded-full font-black uppercase tracking-tighter hover:scale-105 transition-transform"
+                  >
+                    Еще раз
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setChecking(false);
+                      setFeedback({ isCorrect: false, explanation: 'Проверка пропущена пользователем.' });
+                      setGameState('feedback');
+                    }}
+                    className="px-8 py-3 bg-primary/10 text-primary rounded-full font-black uppercase tracking-tighter hover:bg-primary/20 transition-all"
+                  >
+                    Пропустить
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -344,11 +504,6 @@ export function MillionaireGame() {
           <HelpCircle className="text-primary" size={20} />
           <span className="text-sm font-bold uppercase tracking-wider text-primary/60">Тема:</span>
           <span className="text-sm font-black uppercase tracking-wider text-primary">{topic}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Zap className="text-primary" size={20} />
-          <span className="text-sm font-bold uppercase tracking-wider text-primary/60">Сложность:</span>
-          <span className="text-sm font-black uppercase tracking-wider text-primary">{difficultyNames[options.difficulty] || options.difficulty}</span>
         </div>
       </div>
 
@@ -428,27 +583,62 @@ export function MillionaireGame() {
               );
             })}
           </div>
+
+          {/* Mobile Prizes List - Moved to bottom */}
+          <div className="lg:hidden mt-12 space-y-1 rounded-3xl border border-primary/20 bg-primary/5 p-4">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/40 mb-2 px-3">Этапы игры</h4>
+            {PRIZES.slice().reverse().map((prize, idx) => {
+              const level = 14 - idx;
+              const isCurrent = level === currentIndex;
+              const isSafety = level === 4 || level === 9 || level === 14;
+              
+              return (
+                <div 
+                  key={level}
+                  className={`flex justify-between rounded-lg px-3 py-1 text-sm font-bold ${
+                    isCurrent ? 'bg-primary text-background' : 
+                    isSafety ? 'text-primary' : 'text-foreground/40'
+                  }`}
+                >
+                  <span>{level + 1}</span>
+                  <span>{prize} ₽</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="hidden lg:block space-y-1 rounded-3xl border border-primary/20 bg-primary/5 p-4">
-          {PRIZES.slice().reverse().map((prize, idx) => {
-            const level = 14 - idx;
-            const isCurrent = level === currentIndex;
-            const isSafety = level === 4 || level === 9 || level === 14;
-            
-            return (
-              <div 
-                key={level}
-                className={`flex justify-between rounded-lg px-3 py-1 text-sm font-bold ${
-                  isCurrent ? 'bg-primary text-background' : 
-                  isSafety ? 'text-primary' : 'text-foreground/40'
-                }`}
-              >
-                <span>{level + 1}</span>
-                <span>{prize} ₽</span>
-              </div>
-            );
-          })}
+        <div className="hidden lg:flex flex-col gap-4">
+          <div className="space-y-1 rounded-3xl border border-primary/20 bg-primary/5 p-4">
+            {PRIZES.slice().reverse().map((prize, idx) => {
+              const level = 14 - idx;
+              const isCurrent = level === currentIndex;
+              const isSafety = level === 4 || level === 9 || level === 14;
+              
+              return (
+                <div 
+                  key={level}
+                  className={`flex justify-between rounded-lg px-3 py-1 text-sm font-bold ${
+                    isCurrent ? 'bg-primary text-background' : 
+                    isSafety ? 'text-primary' : 'text-foreground/40'
+                  }`}
+                >
+                  <span>{level + 1}</span>
+                  <span>{prize} ₽</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {options.playMode === 'multi' && (
+            <div className="h-[300px]">
+              <GameChat 
+                messages={chatMessages} 
+                onSendMessage={handleSendMessage} 
+                currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

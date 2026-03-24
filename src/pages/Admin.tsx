@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
-import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2 } from 'lucide-react';
+import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2, Search, Trash2, Edit2, Globe, Image as ImageIcon, Type, FileText } from 'lucide-react';
 import { getSupabase } from '../supabase';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { AdminSettings } from '../types';
+import { TOPICS } from '../constants';
 
 export const AdminPage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,10 +15,14 @@ export const AdminPage: React.FC = () => {
   const { playCroak } = useFrogSound();
   const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors' | 'news'>('users');
   const [users, setUsers] = useState<any[]>([]);
+  const [games, setGames] = useState<any[]>([]);
+  const [news, setNews] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
-  const [showCreateGame, setShowCreateGame] = useState(false);
   const [showNewsConstructor, setShowNewsConstructor] = useState(false);
+  const [editingNews, setEditingNews] = useState<any>(null);
+  const [newsSearchQuery, setNewsSearchQuery] = useState('');
+  const [newsFilterPlatform, setNewsFilterPlatform] = useState<'all' | 'app' | 'tg' | 'vk'>('all');
   const [newsForm, setNewsForm] = useState({
     title: '',
     content: '',
@@ -29,12 +34,108 @@ export const AdminPage: React.FC = () => {
 
   const [settings, setSettings] = useState<AdminSettings>({
     prompts: {
-      blitz: 'Генерируй 10 вопросов для КвИИЗа. Вопросы должны быть короткими и динамичными.',
-      millionaire: 'Генерируй 15 вопросов для игры Квиллионер. Сложность должна расти от 1 до 15. Для каждого вопроса дай пояснение, почему ответ верный.',
-      '100to1': 'Генерируй вопрос для игры Сто Квадному и 6 самых популярных ответов на него с баллами (от большего к меньшему). Также дай 2 подсказки от ИИ.',
-      whatwherewhen: 'Генерируй 11 вопросов в стиле Что? Где? Квада?. Вопросы должны быть на логику, а не на знание фактов. Дай подробное пояснение к ответу.',
-      melody: 'Генерируй 25 вопросов для Уквадай Мелодию. Указывай исполнителя и название песни.',
-      jeopardy: 'Генерируй 76 вопросов для Своей Иквы. Раздели их по категориям и стоимости.'
+      jeopardy_categories: `Сгенерируй 5 уникальных и интересных названий категорий для игры "Своя Иква" на тему "{topic}". 
+    Сложность: {diffDesc}. 
+    Названия должны быть краткими (1-3 слова).
+    Верни JSON массив строк.`,
+      blitz_questions: `Сгенерируй ПАКЕТ из {count} вопросов для КвИИЗа на тему "{topic}". 
+    Сложность: {diffDesc}.
+    
+    ТРЕБОВАНИЯ К ВОПРОСАМ:
+    1. Каждый вопрос должен быть основан на интересном факте по теме "{topic}" с учетом уровня сложности.
+    2. Вопрос должен представлять собой логическую цепочку или загадку, требующую эрудиции и смекалки, а не простого знания фактов.
+    3. В тексте вопроса КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать однокоренные слова к правильному ответу.
+    4. Обязательно добавляй в текст вопроса косвенные намеки и ключевые фразы, помогающие прийти к ответу.
+    5. Ответ должен быть коротким (1-3 слова).
+    6. Каждый вопрос должен сопровождаться подробным комментарием (explanation), который объясняет ответ и добавляет интересный факт.
+    
+    Верни массив объектов в формате JSON с полями: text, correctAnswer, hint, explanation.`,
+      millionaire_questions: `Сгенерируй ПОЛНЫЙ ПАКЕТ из 15 вопросов для игры "Квиллионер" на тему "{topic}".
+    Базовая сложность: {diffDesc}.
+    
+    ТРЕБОВАНИЯ:
+    1. Сложность должна прогрессировать от 1 (очень легко) до 15 (невероятно сложно).
+    2. Каждый вопрос должен быть основан на интересном факте по теме "{topic}".
+    3. Вопрос должен представлять собой логическую цепочку или загадку, требующую эрудиции и смекалки.
+    4. В тексте вопроса КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать однокоренные слова к правильному ответу.
+    5. Обязательно добавляй в текст вопроса косвенные намеки и ключевые фразы.
+    6. Для каждого вопроса предложи 4 варианта ответа (А, Б, В, Г).
+    7. Для каждого вопроса напиши подробный комментарий (explanation), который будет показан после ответа.
+    
+    Верни массив из 15 объектов в формате JSON с полями: text, options (массив из 4 строк с префиксами А. Б. В. Г.), correctAnswer (строка, в точности совпадающая с одним из options), hint, explanation.`,
+      whatwherewhen_questions: `Сгенерируй ПАКЕТ из 11 вопросов для игры "Что? Где? Квада?" на тему "{topic}".
+    Сложность: {diffDesc}.
+    
+    ТРЕБОВАНИЯ:
+    1. Вопросы должны быть в стиле элитарного клуба: на логику, догадку, "красивое" решение, а не на сухие факты. Основывайся на интересных фактах по теме "{topic}".
+    2. Каждый вопрос должен начинаться с представления телезрителя в формате: "Вопрос от телезрителя [Имя Фамилия Отчество] из [Населенный пункт, Область] интересуется у знатоков:".
+    3. Имена должны быть русскими, забавными, редкими и колоритными (например: Акакий Пантелеймонович Свинорылов).
+    4. Населенные пункты должны иметь необычные названия и реально существующие области России (например: деревня Выдропужск, Тверская область).
+    5. Сам вопрос должен строиться так: берется энциклопедичный факт и из него логичным намеком строится вопрос, чтобы даже не зная факта можно было прийти к нему смекалкой и небольшой эрудицией.
+    6. В тексте вопроса КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать однокоренные слова к правильному ответу.
+    7. Обязательно добавляй в текст вопроса косвенные намеки и ключевые фразы.
+    8. Каждый вопрос должен иметь подробное объяснение (explanation) логики ответа.
+    
+    Верни массив из 11 объектов в формате JSON с полями: text, correctAnswer, hint, explanation.`,
+      '100to1_questions': `Сгенерируй ОДИН уникальный и малопопулярный вопрос для игры "Сто Квадному" на тему "{topic}".
+    Сложность: {diffDesc}.
+    
+    ТРЕБОВАНИЯ:
+    1. Вопрос должен быть необычным, основанным на интересном факте или социальном явлении по теме "{topic}".
+    2. Вопрос должен быть сформулирован как загадка или логическая задача.
+    3. В тексте вопроса КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать однокоренные слова к самым популярным ответам.
+    4. Нужно 6 вариантов ответов с баллами (от самого популярного к самому редкому).
+    5. Добавь подробный комментарий (explanation) о том, почему такие ответы могли быть даны.
+    
+    Верни объект JSON с полями: question, answers (массив из 6 объектов {text, points}), hint, explanation.`,
+      jeopardy_questions: `Сгенерируй ОДИН уникальный и малопопулярный вопрос для "Своей Игры" на тему "{topic}".
+    Сложность: {diffDesc}.
+    
+    ТРЕБОВАНИЯ:
+    1. Вопрос должен быть развернутым, интересным и основанным на глубоком факте по теме "{topic}".
+    2. Вопрос должен представлять собой логическую цепочку или загадку.
+    3. В тексте вопроса КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать однокоренные слова к правильному ответу.
+    4. Обязательно добавляй в текст вопроса косвенные намеки и ключевые фразы.
+    5. Добавь подробный комментарий (explanation) к ответу.
+    
+    Верни объект JSON с полями: text, answer, hint, explanation.`,
+      normal_questions: `Сгенерируй {count} вопросов на тему "{topic}". Сложность: {diffDesc}.
+    ТРЕБОВАНИЯ:
+    1. Основывайся на интересных фактах.
+    2. Используй логические цепочки и загадки.
+    3. ЗАПРЕЩЕНО использовать однокоренные слова к ответу.
+    4. Добавляй намеки и ключевые фразы.
+    Верни массив объектов JSON: text, options (4 шт), correctAnswer, hint, explanation.`,
+      single_question: `Сгенерируй 1 вопрос для игры "{type}" на тему "{topic}". 
+    Уровень сложности: {level} из 15 (где 1 - самый простой, 15 - самый сложный).
+    Сложность по классификации: "{difficulty}".
+    
+    Верни объект JSON со следующей структурой:
+    {
+      "text": "Текст вопроса",
+      "options": ["А. Вариант", "Б. Вариант", "В. Вариант", "Г. Вариант"],
+      "correctAnswer": "Точный текст правильного варианта из массива options (вместе с буквой)",
+      "hint": "Небольшая подсказка"
+    }
+    
+    ВАЖНО: 
+    1. Ответ должен быть СТРОГО в формате JSON.
+    2. Поле correctAnswer должно в точности совпадать с одним из элементов массива options.
+    3. Вопрос должен соответствовать уровню сложности {level}.
+    4. Обязательно используй буквы А. Б. В. Г. для вариантов ответов.`,
+      check_answer: `Вопрос: "{question}". Правильный ответ: "{correctAnswer}". Ответ пользователя: "{userAnswer}". 
+    Проверь, является ли ответ пользователя правильным по смыслу. 
+    Верни JSON: { "isCorrect": boolean, "explanation": string }
+    В поле explanation напиши краткий и емкий ответ (максимум 500 символов): почему ответ пользователя правильный или почему он неправильный, 
+    раскрой логику вопроса и правильного ответа.`,
+      ai_comment: `Ты - ИИ-персонаж в игре-викторине. Твой характер: {personality}.
+    Произошло событие: {event}. 
+    Вопрос был: "{question}". 
+    Правильный ответ: "{answer}".
+    Был ли ответ правильным: {isCorrect}.
+    Напиши короткий (1-2 предложения) комментарий в игровой чат от своего лица. 
+    Комментарий должен соответствовать твоему характеру.
+    Верни просто текст комментария.`
     }
   });
 
@@ -78,20 +179,39 @@ export const AdminPage: React.FC = () => {
       const supabase = getSupabase();
       if (!supabase) return;
 
-      // 1. Save to DB (Supabase)
-      const { data, error } = await supabase.from('news').insert({
-        title: newsForm.title,
-        content: newsForm.content,
-        media_urls: newsForm.mediaUrls,
-        media_type: newsForm.mediaType,
-        platforms: newsForm.platforms,
-        scheduled_at: newsForm.scheduledAt || new Date().toISOString(),
-        author_id: user?.uid
-      });
+      if (editingNews) {
+        // Update existing news
+        const { error } = await supabase
+          .from('news')
+          .update({
+            title: newsForm.title,
+            content: newsForm.content,
+            media_urls: newsForm.mediaUrls,
+            media_type: newsForm.mediaType,
+            platforms: newsForm.platforms,
+            scheduled_at: newsForm.scheduledAt || new Date().toISOString(),
+          })
+          .eq('id', editingNews.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        alert('Новость обновлена!');
+      } else {
+        // Create new news
+        const { error } = await supabase.from('news').insert({
+          title: newsForm.title,
+          content: newsForm.content,
+          media_urls: newsForm.mediaUrls,
+          media_type: newsForm.mediaType,
+          platforms: newsForm.platforms,
+          scheduled_at: newsForm.scheduledAt || new Date().toISOString(),
+          author_id: user?.uid
+        });
 
-      // 2. Placeholder for external platforms
+        if (error) throw error;
+        alert('Новость опубликована!');
+      }
+
+      // Placeholder for external platforms
       if (newsForm.platforms.includes('tg')) {
         console.log('Publishing to Telegram...');
       }
@@ -99,8 +219,8 @@ export const AdminPage: React.FC = () => {
         console.log('Publishing to VK...');
       }
 
-      alert('Новость опубликована!');
       setShowNewsConstructor(false);
+      setEditingNews(null);
       setNewsForm({
         title: '',
         content: '',
@@ -109,11 +229,50 @@ export const AdminPage: React.FC = () => {
         platforms: [],
         scheduledAt: ''
       });
+      fetchNews();
     } catch (err) {
       console.error('Error publishing news:', err);
       alert('Ошибка при публикации новости');
     }
   };
+
+  const handleDeleteNews = async (id: string) => {
+    if (!confirm('Вы уверены, что хотите удалить эту новость?')) return;
+    
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const { error } = await supabase.from('news').delete().eq('id', id);
+      if (error) throw error;
+      
+      alert('Новость удалена');
+      fetchNews();
+    } catch (err) {
+      console.error('Error deleting news:', err);
+      alert('Ошибка при удалении новости');
+    }
+  };
+
+  const handleEditNews = (item: any) => {
+    setEditingNews(item);
+    setNewsForm({
+      title: item.title,
+      content: item.content,
+      mediaUrls: item.media_urls || [],
+      mediaType: item.media_type || 'image',
+      platforms: item.platforms || [],
+      scheduledAt: item.scheduled_at ? new Date(item.scheduled_at).toISOString().slice(0, 16) : ''
+    });
+    setShowNewsConstructor(true);
+  };
+
+  const filteredNews = news.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(newsSearchQuery.toLowerCase()) || 
+                         item.content.toLowerCase().includes(newsSearchQuery.toLowerCase());
+    const matchesPlatform = newsFilterPlatform === 'all' || item.platforms?.includes(newsFilterPlatform);
+    return matchesSearch && matchesPlatform;
+  });
 
   const handleSavePrompts = async () => {
     setLoading(true);
@@ -141,26 +300,48 @@ export const AdminPage: React.FC = () => {
     }
   };
 
+  const fetchPrompts = async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { data, error } = await supabase.from('prompts').select('*');
+    if (error) {
+      console.error('Error fetching prompts:', error);
+    } else if (data) {
+      const newPrompts = { ...settings.prompts };
+      data.forEach((p: any) => {
+        (newPrompts as any)[p.game_id] = p.content;
+      });
+      setSettings(prev => ({ ...prev, prompts: newPrompts }));
+    }
+  };
+
+  const fetchNews = async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false });
+    setNews(data || []);
+  };
+
   useEffect(() => {
-    const fetchPrompts = async () => {
+    const fetchGames = async () => {
       const supabase = getSupabase();
       if (!supabase) return;
-
-      const { data, error } = await supabase.from('prompts').select('*');
-      if (error) {
-        console.error('Error fetching prompts:', error);
-      } else if (data) {
-        const newPrompts = { ...settings.prompts };
-        data.forEach((p: any) => {
-          if (newPrompts.hasOwnProperty(p.game_id)) {
-            (newPrompts as any)[p.game_id] = p.content;
-          }
-        });
-        setSettings(prev => ({ ...prev, prompts: newPrompts }));
-      }
+      const { data } = await supabase.from('shop_items').select('*');
+      setGames(data || []);
     };
+
     fetchPrompts();
+    fetchGames();
+    fetchNews();
   }, []);
+
+  const fetchGames = async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = await supabase.from('shop_items').select('*');
+    setGames(data || []);
+  };
 
   useEffect(() => {
     if (activeTab === 'users' && (profile?.role === 'admin' || profile?.role === 'superadmin')) {
@@ -339,22 +520,88 @@ export const AdminPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Конструктор новостей</h2>
                 <button 
-                  onClick={() => setShowNewsConstructor(true)}
+                  onClick={() => {
+                    setEditingNews(null);
+                    setNewsForm({
+                      title: '',
+                      content: '',
+                      mediaUrls: [],
+                      mediaType: 'image',
+                      platforms: [],
+                      scheduledAt: ''
+                    });
+                    setShowNewsConstructor(true);
+                  }}
                   className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-background transition-transform hover:scale-105"
                 >
                   <Plus size={16} />
                   Добавить новость
                 </button>
               </div>
+
+              <div className="flex flex-wrap gap-4 items-center bg-background/20 p-4 rounded-2xl">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Поиск по новостям..." 
+                    value={newsSearchQuery}
+                    onChange={(e) => setNewsSearchQuery(e.target.value)}
+                    className="w-full rounded-full border border-primary/20 bg-background pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  {(['all', 'app', 'tg', 'vk'] as const).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setNewsFilterPlatform(p)}
+                      className={`rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-all ${
+                        newsFilterPlatform === p 
+                          ? 'bg-primary text-background' 
+                          : 'bg-primary/10 text-primary hover:bg-primary/20'
+                      }`}
+                    >
+                      {p === 'all' ? 'Все' : p.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
               
               <div className="grid gap-4">
-                <div className="rounded-2xl border border-primary/10 bg-background/40 p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">Запуск нового сезона!</p>
-                    <p className="text-xs text-foreground/40 uppercase tracking-widest">20.03.2024 • Telegram, VK</p>
+                {filteredNews.map(item => (
+                  <div key={item.id} className="rounded-2xl border border-primary/10 bg-background/40 p-4 flex items-center justify-between group hover:border-primary/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      {item.media_urls?.[0] && (
+                        <img src={item.media_urls[0]} alt="" className="w-12 h-12 rounded-lg object-cover border border-primary/10" />
+                      )}
+                      <div>
+                        <p className="font-bold">{item.title}</p>
+                        <p className="text-[10px] text-foreground/40 uppercase tracking-widest">
+                          {new Date(item.created_at).toLocaleDateString()} • {item.platforms?.join(', ') || 'Web'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => handleEditNews(item)}
+                        className="p-2 rounded-full hover:bg-primary/10 text-primary transition-colors"
+                        title="Редактировать"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteNews(item.id)}
+                        className="p-2 rounded-full hover:bg-red-500/10 text-red-500 transition-colors"
+                        title="Удалить"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                  <button className="text-xs font-bold text-primary hover:underline">Редактировать</button>
-                </div>
+                ))}
+                {filteredNews.length === 0 && (
+                  <p className="text-center py-10 text-foreground/40 italic">Новостей не найдено</p>
+                )}
               </div>
             </div>
           )}
@@ -432,7 +679,7 @@ export const AdminPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Управление играми</h2>
                 <button 
-                  onClick={() => setShowCreateGame(true)}
+                  onClick={() => navigate('/game/create')}
                   className="flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-background transition-transform hover:scale-105"
                 >
                   <Plus size={16} />
@@ -440,9 +687,18 @@ export const AdminPage: React.FC = () => {
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <GameItem title="КвИИЗ" type="blitz" questions={120} active={true} />
-                <GameItem title="Квиллионер" type="millionaire" questions={450} active={true} />
-                <GameItem title="Сто Квадному" type="100to1" questions={85} active={false} />
+                {games.map(game => (
+                  <GameItem 
+                    key={game.id}
+                    title={game.title} 
+                    type={game.type} 
+                    questions={game.questions_count || 0} 
+                    active={game.is_active} 
+                  />
+                ))}
+                {games.length === 0 && (
+                  <p className="col-span-2 text-center py-10 text-foreground/40">Игры не найдены</p>
+                )}
               </div>
             </div>
           )}
@@ -452,34 +708,54 @@ export const AdminPage: React.FC = () => {
               <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Настройка AI Промптов</h2>
               <div className="space-y-6">
                 <PromptField 
-                  label="КвИИЗ" 
-                  value={settings.prompts.blitz} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, blitz: v } }))}
+                  label="Категории Своей Игры (jeopardy_categories)" 
+                  value={settings.prompts.jeopardy_categories} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, jeopardy_categories: v } }))}
                 />
                 <PromptField 
-                  label="Квиллионер" 
-                  value={settings.prompts.millionaire} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, millionaire: v } }))}
+                  label="Вопросы Блиц (blitz_questions)" 
+                  value={settings.prompts.blitz_questions} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, blitz_questions: v } }))}
                 />
                 <PromptField 
-                  label="Сто Квадному" 
-                  value={settings.prompts['100to1']} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, '100to1': v } }))}
+                  label="Вопросы Квиллионера (millionaire_questions)" 
+                  value={settings.prompts.millionaire_questions} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, millionaire_questions: v } }))}
                 />
                 <PromptField 
-                  label="Что? Где? Квада?" 
-                  value={settings.prompts.whatwherewhen} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, whatwherewhen: v } }))}
+                  label="Вопросы Что? Где? Квада? (whatwherewhen_questions)" 
+                  value={settings.prompts.whatwherewhen_questions} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, whatwherewhen_questions: v } }))}
                 />
                 <PromptField 
-                  label="Уквадай Мелодию" 
-                  value={settings.prompts.melody} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, melody: v } }))}
+                  label="Вопросы Сто Квадному (100to1_questions)" 
+                  value={settings.prompts['100to1_questions']} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, '100to1_questions': v } }))}
                 />
                 <PromptField 
-                  label="Своя Иква" 
-                  value={settings.prompts.jeopardy} 
-                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, jeopardy: v } }))}
+                  label="Вопросы Своей Игры (jeopardy_questions)" 
+                  value={settings.prompts.jeopardy_questions} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, jeopardy_questions: v } }))}
+                />
+                <PromptField 
+                  label="Обычные вопросы (normal_questions)" 
+                  value={settings.prompts.normal_questions} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, normal_questions: v } }))}
+                />
+                <PromptField 
+                  label="Одиночный вопрос (single_question)" 
+                  value={settings.prompts.single_question} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, single_question: v } }))}
+                />
+                <PromptField 
+                  label="Проверка ответа (check_answer)" 
+                  value={settings.prompts.check_answer} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, check_answer: v } }))}
+                />
+                <PromptField 
+                  label="Комментарий ИИ (ai_comment)" 
+                  value={settings.prompts.ai_comment} 
+                  onChange={(v) => setSettings(prev => ({ ...prev, prompts: { ...prev.prompts, ai_comment: v } }))}
                 />
                 <button 
                   onClick={handleSavePrompts}
@@ -497,6 +773,85 @@ export const AdminPage: React.FC = () => {
             <div className="space-y-8">
               <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Настройки системы</h2>
               
+              {profile?.role === 'superadmin' && (
+                <div className="rounded-3xl border-2 border-primary bg-primary/5 p-8 space-y-8">
+                  <div className="flex items-center gap-4">
+                    <ShieldCheck className="text-primary" size={32} />
+                    <div>
+                      <h3 className="text-2xl font-black uppercase text-primary">Панель Супер-Админа</h3>
+                      <p className="text-sm text-foreground/60 uppercase tracking-widest">Прямое редактирование контента и цен</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Game Pricing Control */}
+                      <div className="border border-primary/20 bg-background/40 p-6 rounded-2xl space-y-4">
+                        <h4 className="font-bold flex items-center gap-2 text-primary">
+                          <Database size={18} /> Управление ценами
+                        </h4>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Что? Где? Квада?</span>
+                            <div className="flex items-center gap-2">
+                              <input type="number" defaultValue={2} className="w-16 rounded-lg border border-primary/20 bg-background px-2 py-1 text-center" />
+                              <span className="text-xs text-foreground/40">₽/вопр</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Уквакай Мелодию</span>
+                            <div className="flex items-center gap-2">
+                              <input type="number" defaultValue={10} className="w-16 rounded-lg border border-primary/20 bg-background px-2 py-1 text-center" />
+                              <span className="text-xs text-foreground/40">₽/вопр</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Остальные игры</span>
+                            <div className="flex items-center gap-2">
+                              <input type="number" defaultValue={1} className="w-16 rounded-lg border border-primary/20 bg-background px-2 py-1 text-center" />
+                              <span className="text-xs text-foreground/40">₽/вопр</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button className="w-full rounded-xl bg-primary py-2 text-xs font-bold text-background">Применить цены</button>
+                      </div>
+
+                      {/* Content Editor */}
+                      <div className="border border-primary/20 bg-background/40 p-6 rounded-2xl space-y-4">
+                        <h4 className="font-bold flex items-center gap-2 text-primary">
+                          <Edit2 size={18} /> Редактор контента
+                        </h4>
+                        <div className="space-y-4">
+                          <select className="w-full rounded-xl border border-primary/20 bg-background px-4 py-2 text-sm">
+                            <option>Выберите игру для редактирования...</option>
+                            {games.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+                          </select>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button className="flex items-center justify-center gap-2 rounded-lg border border-primary/10 bg-primary/5 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/10">
+                              <Type size={14} /> Тексты
+                            </button>
+                            <button className="flex items-center justify-center gap-2 rounded-lg border border-primary/10 bg-primary/5 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/10">
+                              <Globe size={14} /> Темы
+                            </button>
+                            <button className="flex items-center justify-center gap-2 rounded-lg border border-primary/10 bg-primary/5 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/10">
+                              <FileText size={14} /> Описания
+                            </button>
+                            <button className="flex items-center justify-center gap-2 rounded-lg border border-primary/10 bg-primary/5 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-primary/10">
+                              <ImageIcon size={14} /> Картинки
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl">
+                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-2">Внимание: Режим супер-админа</p>
+                      <p className="text-xs text-foreground/60">Изменения в этой панели напрямую влияют на экономику игры и отображение контента для всех пользователей. Будьте осторожны при ручном редактировании.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-3xl border border-primary/20 bg-primary/5 p-8 space-y-6">
                 <div>
                   <h3 className="text-xl font-bold text-primary">База данных и Тестирование</h3>
@@ -660,61 +1015,6 @@ export const AdminPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Game Modal */}
-      {showCreateGame && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-background/80 p-4 backdrop-blur-xl">
-          <div className="w-full max-w-md space-y-6 rounded-3xl border border-primary/20 bg-background p-8 shadow-2xl">
-            <h3 className="text-2xl font-black uppercase text-primary">Анкета создания игры</h3>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Тип игры</label>
-                <select className="w-full rounded-xl border border-primary/20 bg-background px-4 py-3">
-                  <option>Блиц</option>
-                  <option>Квиллионер</option>
-                  <option>Сто Квадному</option>
-                  <option>Что? Где? Квада?</option>
-                  <option>Уквадай Мелодию</option>
-                  <option>Своя Иква</option>
-                  <option>IQ Box</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Режим игры</label>
-                <select className="w-full rounded-xl border border-primary/20 bg-background px-4 py-3">
-                  <option>Человечный (Human)</option>
-                  <option>AI Lite</option>
-                  <option>AI True</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Тема</label>
-                <input type="text" placeholder="Например: История кино" className="w-full rounded-xl border border-primary/20 bg-background px-4 py-3" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Сложность</label>
-                <select className="w-full rounded-xl border border-primary/20 bg-background px-4 py-3">
-                  <option>Для чайников</option>
-                  <option>Для людей</option>
-                  <option>Для гениев</option>
-                  <option>Для богов</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <button onClick={() => setShowCreateGame(false)} className="flex-1 rounded-xl border border-primary/20 py-3 font-bold">Отмена</button>
-              <button 
-                onClick={() => {
-                  setShowCreateGame(false);
-                  navigate('/game/create');
-                }}
-                className="flex-1 btn-primary py-3"
-              >
-                Далее
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

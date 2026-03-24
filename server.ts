@@ -15,7 +15,24 @@ async function startServer() {
 
   // Initialize Telegram Bot
   if (BOT_TOKEN) {
-    const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+    const bot = new TelegramBot(BOT_TOKEN);
+    
+    // Use webhook instead of polling to avoid 409 Conflict errors in serverless environments
+    const APP_URL = process.env.APP_URL || `https://${process.env.VITE_VERCEL_URL}`;
+    if (APP_URL) {
+      const webhookUrl = `${APP_URL}/api/telegram-webhook`;
+      bot.setWebHook(webhookUrl);
+      console.log(`Telegram Webhook set to: ${webhookUrl}`);
+      
+      app.post('/api/telegram-webhook', (req, res) => {
+        bot.processUpdate(req.body);
+        res.sendStatus(200);
+      });
+    } else {
+      // Fallback to polling if no APP_URL is found (local dev)
+      console.warn('APP_URL not found. Falling back to polling for Telegram Bot.');
+      bot.startPolling();
+    }
 
     bot.onText(/\/start (.+)/, (msg, match) => {
       const chatId = msg.chat.id;

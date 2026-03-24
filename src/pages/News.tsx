@@ -62,14 +62,19 @@ export function NewsPage() {
 
       <div className="grid gap-8">
         {news.length > 0 ? news.map(post => (
-          <article key={post.id} className="overflow-hidden rounded-3xl border border-white/20 bg-white/10 backdrop-blur-md shadow-xl">
-            {post.image_url && (
-              <img 
-                src={post.image_url} 
-                alt={post.title} 
-                className="h-64 w-full object-cover"
-                referrerPolicy="no-referrer"
-              />
+          <article key={post.id} className="overflow-hidden rounded-3xl border border-white/20 bg-white/10 backdrop-blur-md shadow-xl transition-all hover:border-primary/40">
+            {post.media_urls && post.media_urls.length > 0 && (
+              <div className={`grid gap-1 ${post.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {post.media_urls.map((url: string, idx: number) => (
+                  <img 
+                    key={idx}
+                    src={url} 
+                    alt={post.title} 
+                    className={`w-full object-cover ${post.media_urls.length === 1 ? 'h-96' : 'h-48'}`}
+                    referrerPolicy="no-referrer"
+                  />
+                ))}
+              </div>
             )}
             <div className="p-8">
               <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-widest text-white/40">

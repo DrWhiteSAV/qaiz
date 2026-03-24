@@ -228,7 +228,7 @@ export function SocialPage() {
         {/* Navigation Tabs - Below search on mobile, horizontal row */}
         <div className="order-2 lg:order-1 rounded-3xl border border-primary/20 bg-card p-6 shadow-sm">
           <h2 className="text-xl font-black uppercase tracking-tighter">Социальная сеть</h2>
-          <div className="mt-6 flex flex-row lg:flex-col gap-2 overflow-x-auto no-scrollbar pb-2 lg:pb-0">
+          <div className="mt-6 grid grid-cols-2 lg:grid-cols-1 gap-2">
             <TabButton active={activeTab === 'friends'} onClick={() => setActiveTab('friends')} icon={<Users size={20} />} label="Друзья" count={acceptedFriends.length} />
             <TabButton active={activeTab === 'chats'} onClick={() => setActiveTab('chats')} icon={<MessageSquare size={20} />} label="Чаты" count={0} />
             <TabButton active={activeTab === 'requests'} onClick={() => setActiveTab('requests')} icon={<UserPlus size={20} />} label="Заявки" count={pendingRequests.length} />
