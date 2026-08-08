@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GameStartModal } from '../components/GameStartModal';
 import { useFrogSound } from '../hooks/useSound';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 import { 
   Gamepad2, 
   Users, 

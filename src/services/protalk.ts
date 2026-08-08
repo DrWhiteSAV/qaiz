@@ -1,28 +1,24 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '../db';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://vqcxhdcsmkvleadrsrki.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxY3hoZGNzbWt2bGVhZHJzcmtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNDUyNzcsImV4cCI6MjA4OTYyMTI3N30.g3JpC1LhgzQPzDXnk9p7aT7gV-qPEmZ44vRvvlGgzzY';
 const AI_TIMEOUT_MS = 100000;
 
-async function callAI(prompt: string, mode: string = 'generate'): Promise<any> {
+async function callProTalkAI(prompt: string, mode: string = 'generate'): Promise<any> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
 
   let res: Response;
   try {
-    res = await fetch(`${SUPABASE_URL}/functions/v1/ai-chat`, {
+    res = await fetch('/api/protalk', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
       body: JSON.stringify({ prompt, mode }),
       signal: controller.signal,
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('ИИ не ответил за 100 секунд. Попробуйте повторить запрос.');
+      throw new Error('ProTalk AI не ответил за 100 секунд. Попробуйте повторить запрос.');
     }
     throw error;
   } finally {
@@ -31,12 +27,12 @@ async function callAI(prompt: string, mode: string = 'generate'): Promise<any> {
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-    throw new Error(errData.error || `AI request failed: ${res.status}`);
+    throw new Error(errData.error || `ProTalk request failed: ${res.status}`);
   }
 
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  
+
   if (data.raw) {
     return data.response;
   }
@@ -170,7 +166,7 @@ const DEFAULT_PROMPTS: Record<string, string> = {
     Верни JSON: { "isCorrect": boolean, "explanation": string }
     В поле explanation напиши краткий и емкий ответ (максимум 500 символов): почему ответ пользователя правильный или почему он неправильный, 
     раскрой логику вопроса и правильного ответа.`,
-  ai_comment: `Ты - ИИ-персонаж в игре-викторине. Твой характер: {personality}.
+  ai_comment: `Ты - ИИ-персонаж в игре-викторине ProTalk. Твой характер: {personality}.
     Произошло событие: {event}. 
     Вопрос был: "{question}". 
     Правильный ответ: "{answer}".
@@ -180,12 +176,12 @@ const DEFAULT_PROMPTS: Record<string, string> = {
     Верни просто текст комментария, без JSON.`
 };
 
-export const geminiService = {
+export const protalkService = {
   async getAIPrompt(gameId: string, replacements: Record<string, string | number | boolean>) {
     let content = DEFAULT_PROMPTS[gameId] || '';
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('prompts')
         .select('content')
         .eq('game_id', gameId)
@@ -195,7 +191,7 @@ export const geminiService = {
         content = data.content;
       }
     } catch (e) {
-      console.warn('Supabase prompts fetch failed, using default');
+      console.warn('DB prompts fetch failed, using default');
     }
 
     Object.entries(replacements).forEach(([key, value]) => {
@@ -207,7 +203,7 @@ export const geminiService = {
 
   async generateJeopardyCategories(topic: string, _difficulty: string): Promise<{name: string, description: string}[]> {
     const prompt = await this.getAIPrompt('jeopardy_categories', { topic });
-    const result = await callAI(prompt, 'jeopardy_categories');
+    const result = await callProTalkAI(prompt, 'jeopardy_categories');
     
     if (Array.isArray(result)) return result;
     
@@ -231,9 +227,9 @@ export const geminiService = {
       minValue: Math.min(...values),
       maxValue: Math.max(...values),
     });
-    const result = await callAI(prompt, 'jeopardy_all_questions');
+    const result = await callProTalkAI(prompt, 'jeopardy_all_questions');
     if (Array.isArray(result)) return result;
-    throw new Error("Ошибка генерации вопросов Своей Икры");
+    throw new Error("Ошибка генерации вопросов Своей Икры через ProTalk API");
   },
 
   async generateJeopardyQuestions(categoryName: string, categoryDescription: string, values: number[]) {
@@ -242,8 +238,8 @@ export const geminiService = {
       categoryDescription, 
       values: values.join(', ') 
     });
-    const result = await callAI(prompt, 'jeopardy_questions');
-    if (!Array.isArray(result)) throw new Error("Ошибка генерации вопросов");
+    const result = await callProTalkAI(prompt, 'jeopardy_questions');
+    if (!Array.isArray(result)) throw new Error("Ошибка генерации вопросов через ProTalk API");
     return result;
   },
 
@@ -274,19 +270,19 @@ export const geminiService = {
       }
     }
 
-    return await callAI(prompt, type);
+    return await callProTalkAI(prompt, type);
   },
 
   async generateSingleQuestion(topic: string, difficulty: string, type: string = 'normal', level: number = 1) {
     const prompt = await this.getAIPrompt('single_question', { topic, type, level, difficulty });
-    return await callAI(prompt, 'single_question');
+    return await callProTalkAI(prompt, 'single_question');
   },
 
   async checkAnswer(question: string, userAnswer: string, correctAnswer: string) {
     const prompt = await this.getAIPrompt('check_answer', { question, correctAnswer, userAnswer });
-    const result = await callAI(prompt, 'check_answer');
+    const result = await callProTalkAI(prompt, 'check_answer');
     
-    if (typeof result === 'object' && 'isCorrect' in result) {
+    if (typeof result === 'object' && result !== null && 'isCorrect' in result) {
       return result;
     }
     const isCorrect = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
@@ -295,14 +291,16 @@ export const geminiService = {
 
   async generateAIComment(personality: string, event: string, question: string, answer: string, isCorrect: boolean) {
     const prompt = await this.getAIPrompt('ai_comment', { personality, event, question, answer, isCorrect });
-    const result = await callAI(prompt, 'ai_comment');
+    const result = await callProTalkAI(prompt, 'ai_comment');
     
     if (typeof result === 'string') return result.trim();
     return 'Интересный ход!';
   },
 };
 
-export const generateContent = async (params: { model: string; contents: string | any; config?: any }) => {
+// Backwards compatibility aliases
+export const geminiService = protalkService;
+export const generateContent = async (params: { model?: string; contents: string | any; config?: any }) => {
   const prompt = typeof params.contents === 'string' ? params.contents : JSON.stringify(params.contents);
-  return { text: JSON.stringify(await callAI(prompt, 'generate')) };
+  return { text: JSON.stringify(await callProTalkAI(prompt, 'generate')) };
 };

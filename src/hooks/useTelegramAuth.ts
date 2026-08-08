@@ -1,8 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://vqcxhdcsmkvleadrsrki.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZxY3hoZGNzbWt2bGVhZHJzcmtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNDUyNzcsImV4cCI6MjA4OTYyMTI3N30.g3JpC1LhgzQPzDXnk9p7aT7gV-qPEmZ44vRvvlGgzzY';
+import { db as supabase } from '../db';
 
 export interface TelegramUser {
   id: number;
@@ -58,7 +55,7 @@ export function detectEntryMode(): EntryMode {
     return 'preview';
   }
 
-  // 3. Preview/dev hostnames (but NOT localhost — that's browser mode for Google OAuth testing)
+  // 3. Preview/dev hostnames
   if (
     href.includes('id-preview--') ||
     hostname.includes('run.app') ||
@@ -67,7 +64,6 @@ export function detectEntryMode(): EntryMode {
     return 'preview';
   }
 
-  // localhost / 127.0.0.1 = browser mode so Google OAuth works on dev
   return 'browser';
 }
 
@@ -93,8 +89,8 @@ export const DEV_SUPER_USER: UserProfile = {
 };
 
 /**
- * Reads Telegram WebApp initData, registers/updates the user in Supabase profiles,
- * and returns the stored profile. In Dev / Preview mode returns a super-admin mock profile.
+ * Reads Telegram WebApp initData or local email session, registers/updates the user in SQLite profiles,
+ * and returns the stored profile.
  */
 export function useTelegramAuth() {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
@@ -123,99 +119,37 @@ export function useTelegramAuth() {
         return;
       }
 
-      // Plain browser → check for active Supabase session (Google OAuth)
+      // Plain browser → check for active Email session in localStorage
       if (mode === 'browser') {
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData?.session?.user) {
-          const u = sessionData.session.user;
-          const browserDisplayName =
-            u.user_metadata?.full_name ||
-            u.user_metadata?.name ||
-            u.email?.split('@')[0] ||
-            'Игрок';
-          const browserUserId = Array.from(u.id).reduce<number>(
-            (acc, char) => (acc * 31 + (char as string).charCodeAt(0)) % 2147483647,
-            7,
-          );
+        const storedSession = localStorage.getItem('user_session') || localStorage.getItem('user_email_session');
+        if (storedSession) {
+          try {
+            const parsed = JSON.parse(storedSession);
+            if (parsed && (parsed.uid || parsed.id)) {
+              const uid = parsed.uid || parsed.id;
+              // Fetch latest from SQLite
+              const { data: dbProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('uid', uid)
+                .maybeSingle();
 
-          setTelegramUser({
-            id: browserUserId,
-            first_name: browserDisplayName,
-            username: u.email?.split('@')[0],
-            photo_url: u.user_metadata?.avatar_url || u.user_metadata?.picture || undefined,
-          });
-
-          const { data: browserProfile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('uid', u.id)
-            .maybeSingle();
-          if (browserProfile) {
-            setProfile(browserProfile as unknown as UserProfile);
-
-            // ── Process pending web referral (survives OAuth redirect via localStorage) ──
-            const pendingRef = localStorage.getItem('pending_ref');
-            if (pendingRef && !browserProfile.referred_by && !browserProfile.referred_code) {
-              localStorage.removeItem('pending_ref');
-              sessionStorage.removeItem('pending_ref');
-              try {
-                const res = await fetch(`${SUPABASE_URL}/functions/v1/handle-referral`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                  },
-                  body: JSON.stringify({ user_uid: u.id, referrer_referral_code: pendingRef }),
-                });
-                const result = await res.json();
-                console.log('[BrowserAuth] referral result:', result);
-                // Refetch profile to get updated balance
-                if (result.success) {
-                  const { data: refreshed } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('uid', u.id)
-                    .maybeSingle();
-                  if (refreshed) setProfile(refreshed as unknown as UserProfile);
-                }
-              } catch (e) {
-                console.error('[BrowserAuth] referral error:', e);
+              if (dbProfile) {
+                setProfile(dbProfile as unknown as UserProfile);
+              } else {
+                setProfile(parsed as UserProfile);
               }
+
+              setTelegramUser({
+                id: 1000,
+                first_name: parsed.display_name || parsed.email?.split('@')[0] || 'Игрок',
+                username: parsed.email?.split('@')[0],
+              });
             }
-          } else {
-            // New Google user — create profile
-            const displayName =
-              u.user_metadata?.full_name ||
-              u.user_metadata?.name ||
-              u.email?.split('@')[0] ||
-              'Игрок';
-            const avatarUrl = u.user_metadata?.avatar_url || u.user_metadata?.picture || null;
-            const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const { data: created } = await supabase
-              .from('profiles')
-              .upsert({
-                uid: u.id,
-                email: u.email || null,
-                display_name: displayName,
-                avatar_url: avatarUrl,
-                balance: 100,
-                role: 'player',
-                level: 1,
-                referral_code: referralCode,
-                referral_count: 0,
-                referral_earnings: 0,
-                author_earnings: 0,
-                author_status: 'none',
-              }, { onConflict: 'uid' })
-              .select()
-              .single();
-            if (created) setProfile(created as unknown as UserProfile);
+          } catch (e) {
+            console.error('[BrowserAuth] Failed to parse stored session:', e);
           }
-          setIsLoading(false);
-          return;
         }
-        // No session → no profile, show login page
         setIsLoading(false);
         return;
       }
@@ -239,7 +173,6 @@ export function useTelegramAuth() {
       }
 
       if (!user) {
-        // No user data — stay on loading with no profile
         setIsLoading(false);
         return;
       }
@@ -253,7 +186,7 @@ export function useTelegramAuth() {
         ? `https://t.me/${user.username}`
         : `tg://user?id=${user.id}`;
 
-      // Check if profile already exists
+      // Check if profile already exists in SQLite
       const { data: existing } = await supabase
         .from('profiles')
         .select('*')
@@ -261,11 +194,9 @@ export function useTelegramAuth() {
         .maybeSingle();
 
       let resultData: any = null;
-      let resultError: any = null;
 
       if (existing) {
-        // Profile exists — update display fields only, NEVER touch role or balance
-        const { data: updated, error: updateErr } = await supabase
+        const { data: updated } = await supabase
           .from('profiles')
           .update({
             display_name: displayName,
@@ -276,14 +207,12 @@ export function useTelegramAuth() {
           .eq('telegram_id', telegramIdStr)
           .select()
           .single();
-        resultData = updated;
-        resultError = updateErr;
+        resultData = updated || existing;
       } else {
-        // New user — insert with starting balance 100
         const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         const isSuperAdmin = user.id === 169262990;
 
-        const { data: inserted, error: insertErr } = await supabase
+        const { data: inserted } = await supabase
           .from('profiles')
           .insert({
             uid: crypto.randomUUID(),
@@ -304,115 +233,10 @@ export function useTelegramAuth() {
           .select()
           .single();
         resultData = inserted;
-        resultError = insertErr;
       }
 
-      if (resultError) {
-        console.error('[TgAuth] Supabase error:', resultError.message, resultError.code);
-      } else if (resultData) {
+      if (resultData) {
         setProfile(resultData as unknown as UserProfile);
-
-        // ── start_param handling ──
-        const startParam: string | null =
-          tg?.initDataUnsafe?.start_param ??
-          (() => {
-            try {
-              const params = new URLSearchParams(tg?.initData || '');
-              return params.get('start_param') ?? null;
-            } catch (_) { return null; }
-          })();
-
-        console.log('[TgAuth] start_param:', startParam);
-
-        // ── Account linking: link_{uid} — bind Telegram to an existing Google profile ──
-        if (startParam && startParam.startsWith('link_')) {
-          const targetUid = startParam.replace('link_', '');
-          console.log('[TgAuth] Account linking for uid:', targetUid);
-          try {
-            // Check: does a standalone Telegram profile already exist for this telegram_id?
-            // resultData.uid = current Telegram profile (may be newly created or existing)
-            // targetUid = Google browser profile to merge Telegram data into
-            if (resultData.uid !== targetUid) {
-              // Merge: primary = Google profile (targetUid), secondary = Telegram profile (resultData.uid)
-              // Telegram data (name, avatar, telegram_id) will overwrite empty fields in primary
-              // Balances will be summed
-              const mergeRes = await fetch(
-                `${SUPABASE_URL}/functions/v1/merge-accounts`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                  },
-                  body: JSON.stringify({
-                    mode: 'telegram_linking_in_browser',
-                    primary_uid: targetUid,
-                    secondary_uid: resultData.uid,
-                  }),
-                }
-              );
-              const mergeResult = await mergeRes.json();
-              console.log('[TgAuth] merge-accounts result:', mergeResult);
-
-              // Update local state with the merged profile (primary = Google profile, now with Telegram data)
-              if (mergeResult.profile) {
-                setProfile(mergeResult.profile as unknown as UserProfile);
-              }
-            } else {
-              // Same uid — just update Telegram fields directly
-              const { error: linkErr } = await supabase
-                .from('profiles')
-                .update({
-                  telegram_id: telegramIdStr,
-                  display_name: displayName,
-                  avatar_url: user.photo_url ?? null,
-                  username: usernameFormatted,
-                  telegram_profile_url: profileUrl,
-                })
-                .eq('uid', targetUid);
-              if (linkErr) console.error('[TgAuth] Link error:', linkErr);
-            }
-          } catch (e) {
-            console.error('[TgAuth] Link exception:', e);
-          }
-        }
-
-        // ── Referral handling: numeric start_param ──
-        if (startParam && /^\d+$/.test(startParam) && startParam !== String(user.id)) {
-          // Call handle-referral edge function
-          try {
-            const resp = await fetch(
-              `${SUPABASE_URL}/functions/v1/handle-referral`,
-              {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                },
-                body: JSON.stringify({
-                  user_uid: resultData.uid,
-                  referrer_telegram_id: startParam,
-                }),
-              }
-            );
-            const result = await resp.json();
-            console.log('[TgAuth] handle-referral result:', result);
-
-            // If bonus was granted, re-fetch profile to get updated balance
-            if (result.success) {
-              const { data: fresh } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('uid', resultData.uid)
-                .maybeSingle();
-              if (fresh) setProfile(fresh as unknown as UserProfile);
-            }
-          } catch (refErr) {
-            console.error('[TgAuth] handle-referral error:', refErr);
-          }
-        }
       }
 
       setIsLoading(false);
@@ -421,5 +245,11 @@ export function useTelegramAuth() {
     init();
   }, []);
 
-  return { telegramUser, profile, isLoading, entryMode, refetchProfile };
+  return {
+    telegramUser,
+    profile,
+    isLoading,
+    entryMode,
+    refetchProfile,
+  };
 }

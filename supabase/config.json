@@ -1,6 +1,0 @@
-{
-  "project_id": "your-project-id",
-  "api_url": "https://your-project.supabase.co",
-  "functions_path": "./functions",
-  "migrations_path": "./migrations"
-}

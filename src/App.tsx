@@ -23,7 +23,6 @@ import { ShopPage } from './pages/Shop';
 import { CartPage } from './pages/CartPage';
 import { BillingPage } from './pages/Billing';
 import { GameCreationPage } from './pages/GameCreation';
-import { GoogleCallbackPage } from './pages/GoogleCallback';
 import { BrowserLoginPage } from './pages/BrowserLogin';
 import { PostRegistrationPage } from './pages/PostRegistration';
 import { SystemAdminPage } from './pages/SystemAdminPage';
@@ -32,7 +31,6 @@ function AppRoutes() {
   const { loading, profile, entryMode } = useAuth();
   const location = useLocation();
 
-  // Save ?ref= to both sessionStorage AND localStorage so it survives Google OAuth redirect
   React.useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref');
     if (ref) {
@@ -45,23 +43,19 @@ function AppRoutes() {
     return <SplashScreen />;
   }
 
-  // Browser mode without a Google session → show login page
+  // Browser mode without a session → show login page
   const isBrowserNoAuth = entryMode === 'browser' && !profile;
-  // Only force post-registration if user hasn't skipped it
   const hasSkippedTelegram = sessionStorage.getItem('skip_telegram_link') === 'true';
   const shouldCompletePostRegistration =
     entryMode === 'browser' &&
     !!profile &&
     !profile.telegram_id &&
     !hasSkippedTelegram &&
-    location.pathname !== '/post-registration' &&
-    location.pathname !== '/auth/google/callback';
+    location.pathname !== '/post-registration';
 
   return (
     <Layout>
       <Routes>
-        {/* Always accessible — no auth required */}
-        <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
         <Route path="/post-registration" element={<PostRegistrationPage />} />
 
         {isBrowserNoAuth ? (

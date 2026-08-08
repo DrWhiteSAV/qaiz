@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { Search, ShoppingCart, Zap, Star, Trophy, Music, Users, HelpCircle, Gamepad2, X, CheckCircle2, Plus, CreditCard, PackageCheck, Tag, User, Hash, Coins, Bot, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 
 import { SHOP_ITEMS } from '../constants';
 

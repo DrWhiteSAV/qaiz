@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
 import { Timer, Box, Users, Trophy, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../db';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 import { GameSubmissionModal } from '../components/GameSubmissionModal';

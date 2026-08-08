@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
 import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2, Search, Trash2, Edit2, Globe, Image as ImageIcon, Type, FileText } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 import { AdminSettings } from '../types';
 import { TOPICS } from '../constants';
 
@@ -12,10 +12,15 @@ export const AdminPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   const { playCroak } = useFrogSound();
-  const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors' | 'news'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'games' | 'prompts' | 'settings' | 'authors' | 'news' | 'logs'>('users');
   const [users, setUsers] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
   const [news, setNews] = useState<any[]>([]);
+  const [aiLogs, setAiLogs] = useState<any[]>([]);
+  const [protalkBotId, setProtalkBotId] = useState('60381');
+  const [protalkBotToken, setProtalkBotToken] = useState('60381_FONb1dD2SQdv7FwG0ui2PZ9ODxXMKkz7');
+  const [protalkChannelName, setProtalkChannelName] = useState('miniapp_ru');
+  const [configSaveMsg, setConfigSaveMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [showNewsConstructor, setShowNewsConstructor] = useState(false);
@@ -306,11 +311,69 @@ export const AdminPage: React.FC = () => {
   };
 
   const fetchNews = async () => {
-    
     if (!supabase) return;
     const { data } = await adminDb.from('news').select('*').order('created_at', { ascending: false });
     setNews(data || []);
   };
+
+  const fetchAiLogs = async () => {
+    try {
+      const res = await fetch('/api/admin/logs');
+      if (res.ok) {
+        const data = await res.json();
+        setAiLogs(data.logs || []);
+      }
+    } catch (err) {
+      console.error('Error fetching AI logs:', err);
+    }
+  };
+
+  const fetchProTalkConfig = async () => {
+    try {
+      const res = await fetch('/api/admin/protalk-config');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setProtalkBotId(data.config.bot_id || '60381');
+          setProtalkBotToken(data.config.bot_token || '60381_FONb1dD2SQdv7FwG0ui2PZ9ODxXMKkz7');
+          setProtalkChannelName(data.config.channel_name || 'miniapp_ru');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching ProTalk config:', err);
+    }
+  };
+
+  const handleSaveProtalkConfig = async () => {
+    try {
+      setConfigSaveMsg('');
+      const res = await fetch('/api/admin/protalk-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_id: protalkBotId,
+          bot_token: protalkBotToken,
+          channel_name: protalkChannelName,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setConfigSaveMsg('Настройки сохранения в SQLite успешно обновлены!');
+        setTimeout(() => setConfigSaveMsg(''), 4000);
+      } else {
+        setConfigSaveMsg(data.error || 'Ошибка сохранения');
+      }
+    } catch (err: any) {
+      setConfigSaveMsg(err.message || 'Ошибка сохранения');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      fetchAiLogs();
+      fetchProTalkConfig();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const fetchGames = async () => {
@@ -493,6 +556,12 @@ export const AdminPage: React.FC = () => {
             onClick={() => { playCroak(); setActiveTab('news'); }}
             icon={<Plus size={20} />}
             label="Конструктор новостей"
+          />
+          <TabButton 
+            active={activeTab === 'logs'} 
+            onClick={() => { playCroak(); setActiveTab('logs'); }}
+            icon={<FileText size={20} />}
+            label="Логи ProTalk AI"
           />
           <TabButton 
             active={activeTab === 'settings'} 
@@ -1001,6 +1070,127 @@ export const AdminPage: React.FC = () => {
               <button onClick={handlePublishNews} className="flex-1 btn-primary py-3">Опубликовать</button>
             </div>
           </div>
+          {activeTab === 'logs' && (
+            <div className="space-y-6">
+              {/* ProTalk Bot Config Card */}
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-primary uppercase">Настройки ProTalk Бота (Таблица protalk_config)</h3>
+                    <p className="text-xs text-foreground/50">Учетные данные бота хранятся в отдельной таблице SQLite и используются сервером для всех запросов</p>
+                  </div>
+                  {configSaveMsg && (
+                    <span className="text-xs font-bold text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full">{configSaveMsg}</span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-foreground/60 mb-1">Bot ID</label>
+                    <input
+                      type="text"
+                      value={protalkBotId}
+                      onChange={(e) => setProtalkBotId(e.target.value)}
+                      placeholder="60381"
+                      className="w-full rounded-xl border border-primary/20 bg-background px-4 py-2.5 font-mono text-xs text-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-foreground/60 mb-1">Bot Token</label>
+                    <input
+                      type="text"
+                      value={protalkBotToken}
+                      onChange={(e) => setProtalkBotToken(e.target.value)}
+                      placeholder="60381_FONb1dD2SQdv7FwG0ui2PZ9ODxXMKkz7"
+                      className="w-full rounded-xl border border-primary/20 bg-background px-4 py-2.5 font-mono text-xs text-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold uppercase text-foreground/60 mb-1">Channel Name</label>
+                    <input
+                      type="text"
+                      value={protalkChannelName}
+                      onChange={(e) => setProtalkChannelName(e.target.value)}
+                      placeholder="miniapp_ru"
+                      className="w-full rounded-xl border border-primary/20 bg-background px-4 py-2.5 font-mono text-xs text-primary"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleSaveProtalkConfig}
+                    className="btn-primary px-6 py-2.5 text-xs font-bold uppercase rounded-xl"
+                  >
+                    Сохранить в БД SQLite
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold uppercase tracking-tight text-primary">Логи ProTalk AI</h2>
+                  <p className="text-xs text-foreground/40">История всех запросов и ответов к нейросети ProTalk (таблица logs)</p>
+                </div>
+                <button
+                  onClick={fetchAiLogs}
+                  className="rounded-xl border border-primary/20 bg-primary/10 px-4 py-2 text-xs font-bold uppercase text-primary hover:bg-primary/20"
+                >
+                  Обновить
+                </button>
+              </div>
+
+              {aiLogs.length === 0 ? (
+                <div className="p-12 text-center text-foreground/40">
+                  Логи вызовов ProTalk пока отсутствуют.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="border-b border-primary/10 text-foreground/40 uppercase">
+                        <th className="py-2 px-3">Дата/Время</th>
+                        <th className="py-2 px-3">Чат / Канал</th>
+                        <th className="py-2 px-3">Запрос пользователя</th>
+                        <th className="py-2 px-3">Ответ AI</th>
+                        <th className="py-2 px-3">Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-primary/10">
+                      {aiLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-primary/5 transition-colors">
+                          <td className="py-3 px-3 whitespace-nowrap text-foreground/60 font-mono">
+                            {log.created_at ? new Date(log.created_at).toLocaleString('ru') : '—'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <p className="font-bold font-mono text-primary">{log.channel_id || '—'}</p>
+                            <p className="text-[10px] text-foreground/40">{log.channel_name || 'miniapp'}</p>
+                          </td>
+                          <td className="py-3 px-3 max-w-xs truncate" title={log.user_message}>
+                            {log.user_message}
+                          </td>
+                          <td className="py-3 px-3 max-w-xs truncate font-mono text-foreground/80" title={log.bot_reply}>
+                            {log.bot_reply || '—'}
+                          </td>
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            {log.function_error ? (
+                              <span className="rounded-full bg-red-500/20 px-2.5 py-1 text-[10px] font-bold text-red-500" title={log.function_error}>
+                                Ошибка
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-green-500/20 px-2.5 py-1 text-[10px] font-bold text-green-500">
+                                Успешно
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

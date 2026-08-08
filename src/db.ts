@@ -1,4 +1,4 @@
-// SQLite REST API client adapter providing unified database access
+// SQLite REST API client for Quiz Application database operations
 
 class QueryBuilder {
   private tableName: string;
@@ -175,7 +175,7 @@ class QueryBuilder {
         }
       }
 
-      // Generic fallback to /api/db/query
+      // Generic fallback REST query to SQLite /api/db/query
       const res = await fetch('/api/db/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -201,26 +201,141 @@ class QueryBuilder {
   }
 }
 
-export const supabase = {
+export const sqliteClient = {
   from(tableName: string) {
     return new QueryBuilder(tableName);
   },
   auth: {
     async signOut() {
       localStorage.removeItem('user_session');
+      localStorage.removeItem('user_email_session');
       return { error: null };
     },
     async getSession() {
+      const stored = localStorage.getItem('user_session');
+      if (stored) {
+        try {
+          const user = JSON.parse(stored);
+          return { data: { session: { user } }, error: null };
+        } catch (_) {}
+      }
       return { data: { session: null }, error: null };
     },
     onAuthStateChange(callback: any) {
       return { data: { subscription: { unsubscribe: () => {} } } };
-    },
-    async signInWithOAuth(options: any) {
-      window.location.href = `/google-callback?code=mock_google_oauth_code`;
-      return { data: null, error: null };
     }
   }
 };
 
-export default supabase;
+export const db = sqliteClient;
+export const supabase = sqliteClient; // backwards compatibility alias
+export const getDb = () => sqliteClient;
+
+type StoredGameProgress = {
+  id?: string;
+  user_id: string;
+  pack_id: string;
+  game_type: string;
+  current_step: number;
+  total_steps: number;
+  state: any;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export const saveGameSession = async (session: {
+  userId: string;
+  gameId: string;
+  score: number;
+  totalQuestions: number;
+  correctAnswers: number;
+  mode: string;
+  difficulty: string;
+  topic?: string;
+  pricePaid: number;
+  isWin?: boolean;
+}) => {
+  try {
+    const res = await fetch('/api/game_sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: session.userId,
+        game_id: session.gameId,
+        score: session.score,
+        total_questions: session.totalQuestions,
+        correct_answers: session.correctAnswers,
+        mode: session.mode,
+        difficulty: session.difficulty,
+        topic: session.topic,
+        price_paid: session.pricePaid,
+        is_win: session.isWin
+      })
+    });
+    const json = await res.json();
+    return json.data;
+  } catch (err) {
+    console.error('Failed to save game session:', err);
+    return null;
+  }
+};
+
+export const saveGameProgress = async (progress: {
+  userId: string;
+  packId: string;
+  gameType: string;
+  currentStep: number;
+  totalSteps: number;
+  state: any;
+}): Promise<StoredGameProgress | null> => {
+  try {
+    const res = await fetch('/api/game_progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: progress.userId,
+        pack_id: progress.packId,
+        game_type: progress.gameType,
+        current_step: progress.currentStep,
+        total_steps: progress.totalSteps,
+        state: progress.state
+      })
+    });
+    const json = await res.json();
+    return json.data || null;
+  } catch (err) {
+    console.error('Failed to save game progress:', err);
+    return null;
+  }
+};
+
+export const getGameProgress = async (userId: string, packId: string, gameType: string): Promise<StoredGameProgress | null> => {
+  try {
+    const url = new URL('/api/game_progress', window.location.origin);
+    url.searchParams.set('user_id', userId);
+    url.searchParams.set('pack_id', packId);
+    url.searchParams.set('game_type', gameType);
+
+    const res = await fetch(url.toString());
+    const json = await res.json();
+    return json.data || null;
+  } catch (err) {
+    console.error('Failed to get game progress:', err);
+    return null;
+  }
+};
+
+export const deleteGameProgress = async (userId: string, packId: string, gameType: string) => {
+  try {
+    const url = new URL('/api/game_progress', window.location.origin);
+    url.searchParams.set('user_id', userId);
+    url.searchParams.set('pack_id', packId);
+    url.searchParams.set('game_type', gameType);
+
+    await fetch(url.toString(), { method: 'DELETE' });
+    return true;
+  } catch (err) {
+    console.error('Failed to delete game progress:', err);
+    return false;
+  }
+};

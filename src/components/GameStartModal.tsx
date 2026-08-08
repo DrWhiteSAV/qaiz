@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Info, HelpCircle } from 'lucide-react';
 import { TopicCloud } from './TopicCloud';
 import { DIFFICULTIES, AI_TEMPLATES, AITemplate } from '../constants';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 import { Users, Bot, User, Globe, Monitor } from 'lucide-react';
 
 interface GameStartModalProps {

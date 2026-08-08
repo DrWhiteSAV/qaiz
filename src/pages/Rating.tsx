@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const RatingPage = () => {

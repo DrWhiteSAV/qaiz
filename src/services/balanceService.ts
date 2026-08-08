@@ -1,9 +1,9 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '../db';
 
 export const balanceService = {
   async checkBalance(userId: string, requiredAmount: number) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('balance')
         .eq('uid', userId)
@@ -19,7 +19,7 @@ export const balanceService = {
 
   async deductBalance(userId: string, amount: number) {
     try {
-      const { data: profile, error: fetchError } = await supabase
+      const { data: profile, error: fetchError } = await db
         .from('profiles')
         .select('balance')
         .eq('uid', userId)
@@ -28,7 +28,7 @@ export const balanceService = {
       if (fetchError || !profile) return false;
 
       const newBalance = (profile.balance || 0) - amount;
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ balance: newBalance })
         .eq('uid', userId);
@@ -43,7 +43,7 @@ export const balanceService = {
 
   async addBalance(userId: string, amount: number) {
     try {
-      const { data: profile, error: fetchError } = await supabase
+      const { data: profile, error: fetchError } = await db
         .from('profiles')
         .select('balance')
         .eq('uid', userId)
@@ -52,7 +52,7 @@ export const balanceService = {
       if (fetchError || !profile) return false;
 
       const newBalance = (profile.balance || 0) + amount;
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ balance: newBalance })
         .eq('uid', userId);

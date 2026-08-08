@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 
 export function PostRegistrationPage() {
   const navigate = useNavigate();

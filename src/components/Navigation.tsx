@@ -17,7 +17,7 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -63,9 +63,9 @@ export function Header({ toggleTheme, theme }: { toggleTheme: () => void, theme:
     }
   }, [profile?.balance]);
 
-  const handleLogout = async () => {
-    const { supabase } = await import('@/integrations/supabase/client');
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('user_session');
+    localStorage.removeItem('user_email_session');
     window.location.href = '/';
   };
 

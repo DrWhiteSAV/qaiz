@@ -6,7 +6,7 @@ import { useFrogSound } from '../hooks/useSound';
 import { AuthModal } from '../components/AuthModal';
 import { TopicCloud } from '../components/TopicCloud';
 import { GameStartModal } from '../components/GameStartModal';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 import { TOPICS } from '../constants';
 import { 
   Search, 

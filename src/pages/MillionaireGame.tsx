@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { geminiService } from '../services/gemini';
+import { protalkService, protalkService as geminiService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, RotateCcw, Home, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../db';
 import { GameError } from '../components/GameError';
 import { GameSubmissionModal } from '../components/GameSubmissionModal';
 import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';

@@ -1,21 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { GoogleAuthButton } from '../components/GoogleAuthButton';
+import { EmailAuthForm } from '../components/EmailAuthForm';
 
 export function BrowserLoginPage() {
-  const [error, setError] = useState<string | null>(null);
-  const [linkTma, setLinkTma] = useState<string | null>(null);
-
-  useEffect(() => {
-    const param = new URLSearchParams(window.location.search).get('link_tma');
-    if (param) {
-      sessionStorage.setItem('pending_link_tma', param);
-      setLinkTma(param);
-    }
-  }, []);
-
   return (
-    <div className="flex min-h-[80vh] flex-col items-center justify-center gap-8 p-8 text-center">
+    <div className="flex min-h-[80vh] flex-col items-center justify-center gap-8 p-4 md:p-8 text-center">
       <motion.div
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -25,11 +14,11 @@ export function BrowserLoginPage() {
         {/* Animated Logo */}
         <motion.div
           animate={{ 
-            y: [0, -15, 0],
-            rotate: [0, -5, 5, -5, 0]
+            y: [0, -10, 0],
+            rotate: [0, -3, 3, -3, 0]
           }}
           transition={{ 
-            duration: 2, 
+            duration: 3, 
             repeat: Infinity,
             ease: 'easeInOut'
           }}
@@ -39,50 +28,25 @@ export function BrowserLoginPage() {
           <img 
             src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
             alt="Квайз" 
-            className="relative h-[40vh] max-h-[280px] w-auto drop-shadow-[0_0_15px_rgba(131,196,46,0.4)]" 
+            className="relative h-28 md:h-36 w-auto drop-shadow-[0_0_15px_rgba(131,196,46,0.4)]" 
           />
         </motion.div>
 
         <motion.h1
-          className="text-4xl font-black uppercase tracking-tighter text-primary drop-shadow-lg"
+          className="text-3xl md:text-4xl font-black uppercase tracking-tighter text-primary drop-shadow-lg"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
         >
           Квайз
         </motion.h1>
 
-        <p className="text-sm text-foreground/60">
-          {linkTma
-            ? 'Войдите через Google, чтобы привязать аккаунты'
-            : 'Войдите, чтобы начать играть'}
+        <p className="text-sm text-foreground/70">
+          Войдите по Email или зарегистрируйтесь, чтобы играть
         </p>
 
-        <div className="w-full rounded-[2rem] border border-primary/10 bg-card/40 backdrop-blur-md p-8 space-y-4 shadow-xl">
-          {linkTma && (
-            <div className="rounded-2xl bg-primary/10 border border-primary/20 px-4 py-3 mb-2">
-              <p className="text-sm font-black text-primary">+100 ₽ бонус</p>
-              <p className="text-xs text-foreground/60 mt-1">
-                После входа через Google аккаунты объединятся и вы получите бонус
-              </p>
-            </div>
-          )}
-
-          <p className="text-[10px] font-black uppercase tracking-widest text-foreground/40">
-            Вход через браузер
-          </p>
-          
-          <GoogleAuthButton
-            mode="signin"
-            className="w-full"
-            onError={setError}
-          />
-
-          {error && (
-            <p className="text-xs text-destructive bg-destructive/10 rounded-xl p-3">
-              {error}
-            </p>
-          )}
+        <div className="w-full rounded-[2rem] border border-primary/20 bg-card/60 backdrop-blur-md p-6 shadow-xl">
+          <EmailAuthForm />
         </div>
       </motion.div>
     </div>

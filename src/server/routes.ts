@@ -3,6 +3,75 @@ import { getDb, generateId, recalculateUserBalancesFromTransactions, performDail
 
 export function setupApiRoutes(app: Express) {
   // ----------------------------------------------------
+  // AUTH API (EMAIL & PASSWORD)
+  // ----------------------------------------------------
+  app.post('/api/auth/register', async (req, res) => {
+    try {
+      const { email, password, display_name } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email и пароль обязательны' });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const existing = await getOne('SELECT * FROM profiles WHERE LOWER(email) = ?', [normalizedEmail]);
+      if (existing) {
+        return res.status(400).json({ error: 'Пользователь с таким email уже зарегистрирован' });
+      }
+
+      const uid = generateId('usr');
+      const displayName = display_name || normalizedEmail.split('@')[0] || 'Игрок';
+
+      await runSql(
+        `INSERT INTO profiles (id, uid, email, password, display_name, role, balance_rub, coins)
+         VALUES (?, ?, ?, ?, ?, 'player', 100, 50)`,
+        [uid, uid, normalizedEmail, password, displayName]
+      );
+
+      const created = await getOne('SELECT * FROM profiles WHERE uid = ?', [uid]);
+      if (created) delete created.password;
+
+      res.json({ data: created, message: 'Успешная регистрация' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: 'Email и пароль обязательны' });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = await getOne('SELECT * FROM profiles WHERE LOWER(email) = ?', [normalizedEmail]);
+
+      if (!user) {
+        return res.status(404).json({ error: 'Пользователь с таким email не найден' });
+      }
+
+      if (user.password && user.password !== password) {
+        return res.status(401).json({ error: 'Неверный пароль' });
+      }
+
+      delete user.password;
+      res.json({ data: user, message: 'Успешный вход' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/profiles/by-email/:email', async (req, res) => {
+    try {
+      const profile = await getOne('SELECT * FROM profiles WHERE LOWER(email) = ?', [req.params.email.toLowerCase()]);
+      if (profile) delete profile.password;
+      res.json({ data: profile || null });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------
   // PROFILES API
   // ----------------------------------------------------
   app.get('/api/profiles/by-uid/:uid', async (req, res) => {
@@ -465,6 +534,233 @@ export function setupApiRoutes(app: Express) {
     try {
       await performDailyDatabaseBackup();
       res.json({ success: true, message: 'Бэкап базы данных успешно создан' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------
+  // PROTALK AI API ENDPOINTS (/api/protalk, /api/ai-chat)
+  // ----------------------------------------------------
+  const handleProTalkRequest = async (req: any, res: any) => {
+    const { prompt, chat_id, bot_chat_id, social_id, message } = req.body;
+    const userPrompt = prompt || message;
+
+    if (!userPrompt) {
+      return res.status(400).json({ error: 'Промпт (сообщение) не может быть пустым' });
+    }
+
+    let dbConfig = await getOne<{ bot_id: string; bot_token: string; channel_name: string }>(
+      'SELECT bot_id, bot_token, channel_name FROM protalk_config WHERE is_active = 1 ORDER BY id DESC LIMIT 1'
+    );
+    const botId = dbConfig?.bot_id || process.env.PROTALK_BOT_ID || '60381';
+    const botToken = dbConfig?.bot_token || process.env.PROTALK_BOT_TOKEN || process.env.PROTALK_API_KEY || '60381_FONb1dD2SQdv7FwG0ui2PZ9ODxXMKkz7';
+    const chatId = chat_id || bot_chat_id || `ask${Math.floor(Math.random() * 900000 + 100000)}`;
+    const userSocialId = social_id || `from_user_id:webapp message_id:${Date.now()}`;
+    const channelName = req.body.channel_name || dbConfig?.channel_name || 'miniapp_ru';
+
+    let text = '';
+    let functionError = '';
+
+    try {
+      // Method 1: Try direct ask endpoint: POST https://eu1.api.pro-talk.ru/api/v1.0/ask/{bot_token}
+      try {
+        const askRes = await fetch(`https://eu1.api.pro-talk.ru/api/v1.0/ask/${botToken}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bot_id: parseInt(botId, 10) || botId,
+            chat_id: chatId,
+            message: userPrompt,
+            social_id: userSocialId,
+          }),
+        });
+
+        if (askRes.ok) {
+          const askJson: any = await askRes.json().catch(() => null);
+          if (askJson && (askJson.done || askJson.message || askJson.reply)) {
+            text = askJson.done || askJson.message || askJson.reply;
+          }
+        }
+      } catch (err: any) {
+        console.warn('[ProTalk Ask Endpoint Warn]:', err.message);
+      }
+
+      // Method 2: Async sending + get_last_reply polling (with timeout)
+      if (!text) {
+        try {
+          const sendRes = await fetch('https://eu1.api.pro-talk.ru/api/v1.0/send_message_async', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bot_id: parseInt(botId, 10) || botId,
+              bot_token: botToken,
+              bot_chat_id: chatId,
+              message: userPrompt,
+            }),
+          });
+
+          if (sendRes.ok) {
+            const maxAttempts = 15;
+            const pollInterval = 3000;
+            for (let i = 0; i < maxAttempts; i++) {
+              await new Promise((r) => setTimeout(r, pollInterval));
+              const replyRes = await fetch('https://eu1.api.pro-talk.ru/api/v1.0/get_last_reply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  bot_id: parseInt(botId, 10) || botId,
+                  bot_token: botToken,
+                  bot_chat_id: chatId,
+                }),
+              });
+
+              if (replyRes.ok) {
+                const replyJson: any = await replyRes.json().catch(() => null);
+                if (replyJson && replyJson.message) {
+                  text = replyJson.message;
+                  break;
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('[ProTalk Polling Warn]:', err.message);
+        }
+      }
+
+      // Method 3: Fallback to chat completions endpoint or Gemini API
+      if (!text) {
+        const protalkUrl = process.env.PROTALK_API_URL || 'https://api.protalk.ai/v1/chat/completions';
+        let response = await fetch(protalkUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${botToken}`,
+          },
+          body: JSON.stringify({
+            model: 'protalk-v1',
+            messages: [
+              {
+                role: 'system',
+                content: 'Ты — ProTalk AI, генератор викторин и вопросов для игры Квайз. Всегда возвращай ответы СТРОГО в валидном JSON формате, если того требует промпт.',
+              },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.7,
+          }),
+        });
+
+        if (!response.ok && process.env.GEMINI_API_KEY) {
+          const geminiKey = process.env.GEMINI_API_KEY;
+          response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: userPrompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
+              }),
+            }
+          );
+        }
+
+        if (response.ok) {
+          const json: any = await response.json();
+          text = json.choices?.[0]?.message?.content || json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        }
+      }
+
+      if (!text) {
+        functionError = 'ProTalk API вернул пустой ответ или истекло время ожидания';
+      }
+    } catch (err: any) {
+      functionError = err.message || 'Ошибка обработки запроса к ProTalk AI';
+    }
+
+    // Clean code blocks formatting if present
+    let rawText = text;
+    if (text) {
+      text = text.trim();
+      if (text.startsWith('```')) {
+        text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      }
+    }
+
+    // Record request and response to `logs` table
+    try {
+      await runSql(
+        `INSERT INTO logs (
+          channel_id, user_social_id, user_message, bot_reply,
+          channel_name, bot_id, llm, api_key, server_name, function_error, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+        [
+          chatId,
+          userSocialId,
+          userPrompt,
+          rawText || null,
+          channelName,
+          String(botId),
+          'protalk',
+          botToken ? botToken.slice(0, 10) + '...' : null,
+          'ai-chat-miniapp',
+          functionError || null,
+        ]
+      );
+    } catch (logErr) {
+      console.error('[Logs DB Error]:', logErr);
+    }
+
+    if (functionError && !text) {
+      return res.status(500).json({ error: functionError });
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      res.json({ response: parsed, chatId });
+    } catch (_) {
+      res.json({ response: text, raw: true, chatId });
+    }
+  };
+
+  app.post('/api/protalk', handleProTalkRequest);
+  app.post('/api/ai-chat', handleProTalkRequest);
+
+  // Endpoint to fetch AI ProTalk logs
+  app.get('/api/admin/logs', async (req, res) => {
+    try {
+      const logs = await getAll('SELECT * FROM logs ORDER BY created_at DESC LIMIT 100');
+      res.json({ logs });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Endpoints to manage ProTalk Bot config in SQLite
+  app.get('/api/admin/protalk-config', async (req, res) => {
+    try {
+      const config = await getOne('SELECT * FROM protalk_config WHERE is_active = 1 ORDER BY id DESC LIMIT 1');
+      res.json({
+        config: config || { bot_id: '60381', bot_token: '60381_FONb1dD2SQdv7FwG0ui2PZ9ODxXMKkz7', channel_name: 'miniapp_ru' }
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/admin/protalk-config', async (req, res) => {
+    try {
+      const { bot_id, bot_token, channel_name } = req.body;
+      if (!bot_id || !bot_token) {
+        return res.status(400).json({ error: 'bot_id и bot_token обязательны' });
+      }
+      await runSql('UPDATE protalk_config SET is_active = 0');
+      await runSql(
+        'INSERT INTO protalk_config (bot_id, bot_token, channel_name, is_active) VALUES (?, ?, ?, 1)',
+        [String(bot_id).trim(), String(bot_token).trim(), (channel_name || 'miniapp_ru').trim()]
+      );
+      res.json({ success: true, message: 'Настройки ProTalk успешно сохранены в базе данных SQLite' });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

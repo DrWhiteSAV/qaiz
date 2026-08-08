@@ -10,7 +10,7 @@ import {
   User,
   Loader2
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 
 export function NewsPage() {
   const newsDb = supabase as any;

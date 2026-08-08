@@ -26,11 +26,11 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '../db';
 import { Game, Question, GameMode, Difficulty } from '../types';
 import { TopicCloud } from '../components/TopicCloud';
 import { TOPICS } from '../constants';
-import { generateContent } from '../services/gemini';
+import { generateContent } from '../services/protalk';
 
 type GameType = 'blitz' | 'millionaire' | '100to1' | 'whatwherewhen' | 'melody' | 'jeopardy' | 'iqbox';
 

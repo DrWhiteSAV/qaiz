@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { useTelegramAuth, TelegramUser, UserProfile, EntryMode } from '../hooks/useTelegramAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { db as supabase } from '../db';
 
 interface AuthContextType {
   user: TelegramUser | null;
@@ -52,8 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    // In Telegram Mini App context there's no logout — user is always authenticated
-    // This is kept for compatibility with components that call it
+    localStorage.removeItem('user_session');
+    localStorage.removeItem('user_email_session');
     window.location.reload();
   };
 
