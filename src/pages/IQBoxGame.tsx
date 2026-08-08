@@ -36,7 +36,7 @@ export const IQBoxGame: React.FC = () => {
   useEffect(() => {
     const loadProgress = async () => {
       if (!user || !options.packId) return;
-      const progress = await getGameProgress(user.uid, options.packId, 'iqbox');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'iqbox');
       if (progress) {
         setHasProgress(true);
       }
@@ -49,7 +49,7 @@ export const IQBoxGame: React.FC = () => {
     const saveProgress = async () => {
       if (gameState === 'playing' && user && options.packId && players.length > 0) {
         await saveGameProgress({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           packId: options.packId,
           gameType: 'iqbox',
           currentStep: 1,
@@ -70,7 +70,7 @@ export const IQBoxGame: React.FC = () => {
     if (!user || !options.packId) return;
     setLoading(true);
     try {
-      const progress = await getGameProgress(user.uid, options.packId, 'iqbox');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'iqbox');
       if (progress && progress.state) {
         const { players, currentQuestion, timeLeft, score } = progress.state;
         setPlayers(players);
@@ -102,7 +102,7 @@ export const IQBoxGame: React.FC = () => {
     setGameState('finished');
     if (user) {
       await saveGameSession({
-        userId: user.uid,
+        userId: profile?.uid ?? "",
         gameId: 'iqbox',
         score: score,
         totalQuestions: 1,
@@ -114,7 +114,7 @@ export const IQBoxGame: React.FC = () => {
         isWin: true // Demo always wins
       });
       if (options.packId) {
-        await deleteGameProgress(user.uid, options.packId, 'iqbox');
+        await deleteGameProgress(profile?.uid ?? "", options.packId, 'iqbox');
       }
     }
     setShowSubmission(true);
@@ -136,7 +136,7 @@ export const IQBoxGame: React.FC = () => {
     playCroak();
     setGameState('playing');
     setPlayers([
-      { uid: '1', name: profile?.displayName || 'Вы', score: 0, boxIndex: 0 },
+      { uid: '1', name: profile?.display_name || 'Вы', score: 0, boxIndex: 0 },
       { uid: '2', name: 'Кибер-Жаба 1', score: 0, boxIndex: 1 },
       { uid: '3', name: 'Кибер-Жаба 2', score: 0, boxIndex: 2 },
       { uid: '4', name: 'Кибер-Жаба 3', score: 0, boxIndex: 3 },
@@ -275,7 +275,7 @@ export const IQBoxGame: React.FC = () => {
               <div className="flex flex-col gap-4">
                 <button 
                   onClick={async () => {
-                    if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'iqbox');
+                    if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'iqbox');
                     window.location.reload();
                   }} 
                   className="btn-primary w-full py-4 text-xl"
@@ -284,7 +284,7 @@ export const IQBoxGame: React.FC = () => {
                 </button>
                 <button 
                   onClick={async () => {
-                    if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'iqbox');
+                    if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'iqbox');
                     navigate('/');
                   }} 
                   className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
@@ -299,6 +299,7 @@ export const IQBoxGame: React.FC = () => {
                   gameType="100 квадному"
                   onClose={handleCloseSubmission}
                   onSubmit={handleGameSubmission}
+              userRole={profile?.role || 'player'}
                 />
               )}
             </div>

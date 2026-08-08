@@ -3,13 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useFrogSound } from '../hooks/useSound';
 import { Settings, Users, Database, MessageSquare, ShieldCheck, Plus, Loader2, Search, Trash2, Edit2, Globe, Image as ImageIcon, Type, FileText } from 'lucide-react';
-import { getSupabase } from '../supabase';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '@/integrations/supabase/client';
 import { AdminSettings } from '../types';
 import { TOPICS } from '../constants';
 
 export const AdminPage: React.FC = () => {
+  const adminDb = supabase as any;
   const navigate = useNavigate();
   const { profile, user } = useAuth();
   const { playCroak } = useFrogSound();
@@ -140,14 +139,8 @@ export const AdminPage: React.FC = () => {
   });
 
   const handleApproveAuthor = async (uid: string) => {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    
     try {
-      // Update in Supabase
-      await supabase.from('profiles').update({ role: 'author', author_status: 'active' }).eq('uid', uid);
-      // Update in Firestore
-      await setDoc(doc(db, 'users', uid), { role: 'author', authorStatus: 'active' }, { merge: true });
+      await supabase.from('profiles').update({ role: 'author' }).eq('uid', uid);
       alert('Автор одобрен!');
       fetchUsers();
     } catch (err) {
@@ -156,12 +149,8 @@ export const AdminPage: React.FC = () => {
   };
 
   const handleRejectAuthor = async (uid: string) => {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    
     try {
-      await supabase.from('profiles').update({ author_status: 'none' }).eq('uid', uid);
-      await setDoc(doc(db, 'users', uid), { authorStatus: 'none' }, { merge: true });
+      await supabase.from('profiles').update({ role: 'player' }).eq('uid', uid);
       alert('Заявка отклонена');
       fetchUsers();
     } catch (err) {
@@ -176,12 +165,12 @@ export const AdminPage: React.FC = () => {
     }
     
     try {
-      const supabase = getSupabase();
+      
       if (!supabase) return;
 
       if (editingNews) {
         // Update existing news
-        const { error } = await supabase
+        const { error } = await adminDb
           .from('news')
           .update({
             title: newsForm.title,
@@ -197,14 +186,14 @@ export const AdminPage: React.FC = () => {
         alert('Новость обновлена!');
       } else {
         // Create new news
-        const { error } = await supabase.from('news').insert({
+        const { error } = await adminDb.from('news').insert({
           title: newsForm.title,
           content: newsForm.content,
           media_urls: newsForm.mediaUrls,
           media_type: newsForm.mediaType,
           platforms: newsForm.platforms,
           scheduled_at: newsForm.scheduledAt || new Date().toISOString(),
-          author_id: user?.uid
+          author_id: user?.id
         });
 
         if (error) throw error;
@@ -240,10 +229,10 @@ export const AdminPage: React.FC = () => {
     if (!confirm('Вы уверены, что хотите удалить эту новость?')) return;
     
     try {
-      const supabase = getSupabase();
+      
       if (!supabase) return;
 
-      const { error } = await supabase.from('news').delete().eq('id', id);
+      const { error } = await adminDb.from('news').delete().eq('id', id);
       if (error) throw error;
       
       alert('Новость удалена');
@@ -277,10 +266,10 @@ export const AdminPage: React.FC = () => {
   const handleSavePrompts = async () => {
     setLoading(true);
     try {
-      const supabase = getSupabase();
+      
       if (!supabase) return;
 
-      const { error } = await supabase
+      const { error } = await adminDb
         .from('prompts')
         .upsert(
           Object.entries(settings.prompts).map(([game_id, content]) => ({
@@ -301,10 +290,10 @@ export const AdminPage: React.FC = () => {
   };
 
   const fetchPrompts = async () => {
-    const supabase = getSupabase();
+    
     if (!supabase) return;
 
-    const { data, error } = await supabase.from('prompts').select('*');
+    const { data, error } = await adminDb.from('prompts').select('*');
     if (error) {
       console.error('Error fetching prompts:', error);
     } else if (data) {
@@ -317,17 +306,17 @@ export const AdminPage: React.FC = () => {
   };
 
   const fetchNews = async () => {
-    const supabase = getSupabase();
+    
     if (!supabase) return;
-    const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false });
+    const { data } = await adminDb.from('news').select('*').order('created_at', { ascending: false });
     setNews(data || []);
   };
 
   useEffect(() => {
     const fetchGames = async () => {
-      const supabase = getSupabase();
+      
       if (!supabase) return;
-      const { data } = await supabase.from('shop_items').select('*');
+      const { data } = await adminDb.from('shop_items').select('*');
       setGames(data || []);
     };
 
@@ -337,9 +326,9 @@ export const AdminPage: React.FC = () => {
   }, []);
 
   const fetchGames = async () => {
-    const supabase = getSupabase();
+    
     if (!supabase) return;
-    const { data } = await supabase.from('shop_items').select('*');
+    const { data } = await adminDb.from('shop_items').select('*');
     setGames(data || []);
   };
 
@@ -351,7 +340,7 @@ export const AdminPage: React.FC = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
-    const supabase = getSupabase();
+    
     if (!supabase) return;
 
     const { data, error } = await supabase
@@ -371,7 +360,7 @@ export const AdminPage: React.FC = () => {
     if (!confirm('Вы уверены, что хотите добавить демо-данные? Это добавит тестовые записи в таблицы.')) return;
     
     setSeeding(true);
-    const supabase = getSupabase();
+    
     if (!supabase || !user) {
       setSeeding(false);
       return;
@@ -381,7 +370,7 @@ export const AdminPage: React.FC = () => {
       // Seed Game Sessions
       await supabase.from('game_sessions').insert([
         {
-          user_id: user.uid,
+          user_id: profile?.uid ?? "",
           game_id: 'blitz',
           topic: 'История мира',
           difficulty: 'people',
@@ -395,7 +384,7 @@ export const AdminPage: React.FC = () => {
           completed_at: new Date().toISOString()
         },
         {
-          user_id: user.uid,
+          user_id: profile?.uid ?? "",
           game_id: 'millionaire',
           topic: 'Кино',
           difficulty: 'genius',
@@ -413,7 +402,7 @@ export const AdminPage: React.FC = () => {
       // Seed Offline Registrations
       await supabase.from('offline_registrations').insert([
         {
-          user_id: user.uid,
+          user_id: profile?.uid ?? "",
           city: 'Невинномысск',
           date: '25 Марта',
           team_name: 'Лягушки-интеллектуалы',
@@ -426,7 +415,7 @@ export const AdminPage: React.FC = () => {
       // Seed Purchases
       await supabase.from('purchases').insert([
         {
-          user_id: user.uid,
+          user_id: profile?.uid ?? "",
           item_id: 'pack1',
           price_paid: 15
         }
@@ -463,7 +452,7 @@ export const AdminPage: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="font-bold text-primary">{profile.displayName}</p>
+            <p className="font-bold text-primary">{profile.display_name}</p>
             <p className="text-xs text-foreground/40">Главный администратор</p>
           </div>
           <div className="h-12 w-12 rounded-full border-2 border-primary bg-primary/20 flex items-center justify-center">

@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
+import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, Heart, Send, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
 import { GameError } from '../components/GameError';
+import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
 
 import { GameChat, ChatMessage } from '../components/GameChat';
 import { AI_TEMPLATES, AITemplate } from '../constants';
@@ -42,7 +44,7 @@ export function OneHundredToOneGame() {
   const [topic, setTopic] = useState(options.topic || 'Общие знания');
   const [round, setRound] = useState(1);
   const [players, setPlayers] = useState<Player[]>(() => {
-    const p: Player[] = [{ id: '1', name: profile?.displayName || 'Игрок 1', score: 0, isBot: false }];
+    const p: Player[] = [{ id: '1', name: profile?.display_name || 'Игрок 1', score: 0, isBot: false }];
     if (options.playMode === 'ai' && options.aiOpponents) {
       options.aiOpponents.forEach((aiId: string, idx: number) => {
         const template = AI_TEMPLATES.find(t => t.id === aiId);
@@ -72,9 +74,10 @@ export function OneHundredToOneGame() {
   const [checking, setChecking] = useState(false);
   const [checkTimer, setCheckTimer] = useState(0);
   const [checkInterval, setCheckInterval] = useState<any>(null);
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
 
   const startCheckTimer = () => {
-    setCheckTimer(20);
+    setCheckTimer(30);
     if (checkInterval) clearInterval(checkInterval);
     const interval = setInterval(() => {
       setCheckTimer(prev => {
@@ -103,7 +106,7 @@ export function OneHundredToOneGame() {
   useEffect(() => {
     const loadProgress = async () => {
       if (!user || !options.packId) return;
-      const progress = await getGameProgress(user.uid, options.packId, '100to1');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, '100to1');
       if (progress) {
         setHasProgress(true);
       }
@@ -116,7 +119,7 @@ export function OneHundredToOneGame() {
     const saveProgress = async () => {
       if (gameState === 'playing' && user && options.packId && question !== '') {
         await saveGameProgress({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           packId: options.packId,
           gameType: '100to1',
           currentStep: round,
@@ -141,7 +144,7 @@ export function OneHundredToOneGame() {
     if (!user || !options.packId) return;
     setLoading(true);
     try {
-      const progress = await getGameProgress(user.uid, options.packId, '100to1');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, '100to1');
       if (progress && progress.state) {
         const { round, players, question, answers, mistakes, currentPlayerIndex, chatMessages, topic } = progress.state;
         setRound(round);
@@ -208,9 +211,11 @@ export function OneHundredToOneGame() {
       setShowHint(false);
       setFeedback(null);
       setUserAnswer('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading round:', error);
-      setGameState('setup');
+      setErrorMessage(error?.message || 'Не удалось сгенерировать раунд. Попробуйте ещё раз.');
+      setGameState('error');
+      throw error;
     }
   };
 
@@ -218,7 +223,7 @@ export function OneHundredToOneGame() {
     const newMessage: ChatMessage = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       senderId: '1',
-      senderName: profile?.displayName || 'Игрок 1',
+      senderName: profile?.display_name || 'Игрок 1',
       text,
       isBot: false,
       timestamp: Date.now()
@@ -261,12 +266,13 @@ export function OneHundredToOneGame() {
     
     let foundIndex = -1;
     let bestExplanation = '';
-    const questionCost = options.isPurchased ? 0 : 3;
+    const questionCost = options.isPurchased ? 0 : 1;
 
     try {
-      // Deduct balance first
       if (!overrideAnswer && questionCost > 0) {
-        await balanceService.deductBalance(user!.uid, questionCost);
+        await balanceService.deductBalance(profile?.uid ?? "", questionCost);
+        setShowCoinAnimation(true);
+        setTimeout(() => setShowCoinAnimation(false), 1500);
       }
 
       // Check against all unrevealed answers
@@ -305,7 +311,11 @@ export function OneHundredToOneGame() {
         setFeedback({ isCorrect: true, explanation: bestExplanation, points });
       } else {
         setMistakes(m => m + 1);
-        setFeedback({ isCorrect: false, explanation: bestExplanation });
+        // Don't reveal the correct answers - that's the point of the game
+        const wrongExplanation = Math.random() > 0.5
+          ? 'Такой ответ был у 1 человека, но он не входит в 6 самых популярных.'
+          : 'Среди опрошенных такого ответа не было. Попробуйте подумать о более распространённых вариантах.';
+        setFeedback({ isCorrect: false, explanation: wrongExplanation });
       }
 
       setGameState('feedback');
@@ -314,7 +324,7 @@ export function OneHundredToOneGame() {
       console.error('Error checking answer:', error);
       // Refund if AI check failed
       if (!overrideAnswer) {
-        await balanceService.addBalance(user!.uid, questionCost);
+        await balanceService.addBalance(profile?.uid ?? "", questionCost);
       }
       stopCheckTimer();
     } finally {
@@ -375,7 +385,7 @@ export function OneHundredToOneGame() {
           const botScore = players.find(p => p.isBot)?.score || 0;
           
           await saveGameSession({
-            userId: user.uid,
+            userId: profile?.uid ?? "",
             gameId: '100to1',
             score: userScore,
             totalQuestions: 4,
@@ -387,7 +397,7 @@ export function OneHundredToOneGame() {
             isWin: userScore > botScore
           });
           if (options.packId) {
-            await deleteGameProgress(user.uid, options.packId, '100to1');
+            await deleteGameProgress(profile?.uid ?? "", options.packId, '100to1');
           }
         }
         setGameState('result');
@@ -416,7 +426,7 @@ export function OneHundredToOneGame() {
     setShowSubmission(false);
   };
 
-  if (gameState === 'setup' || (options && gameState === 'loading' && question === '')) {
+  if (gameState === 'setup') {
     return (
       <div className="mx-auto max-w-2xl space-y-8 rounded-3xl border border-primary/20 bg-primary/5 p-8">
         <div className="text-center">
@@ -456,34 +466,16 @@ export function OneHundredToOneGame() {
 
   if (gameState === 'loading') {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm text-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: 1,
-            scale: [0.8, 1, 0.95, 1],
-            rotate: [0, 2, -2, 0]
-          }}
-          transition={{ 
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
-        >
-          <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
-          <img 
-            src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
-            alt="Logo" 
-            className="relative w-full h-full object-contain drop-shadow-2xl"
-            referrerPolicy="no-referrer"
-          />
-        </motion.div>
-        <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xl font-black text-primary animate-pulse uppercase tracking-widest">Опрос 100 человек...</p>
-        </div>
-      </div>
+      <GenerationLoadingScreen 
+        title="Сто Квадному"
+        messages={[
+          'Опрашиваем 100 человек...',
+          'Собираем популярные ответы...',
+          'Подсчитываем баллы...',
+          'Формируем табло...',
+          'Почти готово...',
+        ]}
+      />
     );
   }
 
@@ -520,7 +512,7 @@ export function OneHundredToOneGame() {
         <div className="flex flex-col sm:flex-row gap-4">
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, '100to1');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, '100to1');
               window.location.reload();
             }} 
             className="btn-primary flex-1 py-4 text-xl"
@@ -529,7 +521,7 @@ export function OneHundredToOneGame() {
           </button>
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, '100to1');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, '100to1');
               navigate('/');
             }} 
             className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
@@ -544,6 +536,7 @@ export function OneHundredToOneGame() {
             gameType="100 квадному"
             onClose={handleCloseSubmission}
             onSubmit={handleGameSubmission}
+              userRole={profile?.role || 'player'}
           />
         )}
       </div>
@@ -812,7 +805,7 @@ export function OneHundredToOneGame() {
           <GameChat 
             messages={chatMessages} 
             onSendMessage={handleSendMessage} 
-            currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+            currentUser={{ id: '1', name: profile?.display_name || 'Игрок 1' }} 
           />
         </div>
       )}

@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile information and balance",
+      "type": "object",
+      "table": "profiles",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "display_name": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "admin", "author", "player"] },
+        "balance": { "type": "number" },
+        "telegram_id": { "type": "string" },
+        "referral_code": { "type": "string" },
+        "referred_by": { "type": "string" },
+        "referred_code": { "type": "string" },
+        "referral_count": { "type": "number" },
+        "referral_earnings": { "type": "number" },
+        "author_earnings": { "type": "number" },
+        "author_status": { "type": "string" },
+        "username": { "type": "string" },
+        "avatar_url": { "type": "string" },
+        "telegram_profile_url": { "type": "string" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["uid", "role", "balance", "referral_code"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "Quiz game definition",
+      "table": "games",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "author_id": { "type": "string" },
+        "game_type": { "type": "string" },
+        "topic": { "type": "string" },
+        "questions": { "type": "object" },
+        "question_count": { "type": "number" },
+        "price": { "type": "number" },
+        "is_published": { "type": "boolean" },
+        "created_at": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "GameSession": {
+      "title": "Game Session",
+      "description": "Active or finished game session",
+      "table": "game_sessions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "game_id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "score": { "type": "number" },
+        "status": { "type": "string", "enum": ["started", "playing", "finished"] },
+        "topic": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "mode": { "type": "string" },
+        "is_win": { "type": "boolean" },
+        "correct_answers": { "type": "number" },
+        "total_questions": { "type": "number" },
+        "price_paid": { "type": "number" },
+        "created_at": { "type": "string" },
+        "completed_at": { "type": "string" }
+      },
+      "required": ["id", "game_id", "user_id", "status"]
+    },
+    "GameProgress": {
+      "title": "Game Progress",
+      "description": "Unfinished game progress for a user",
+      "table": "game_progress",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user_id": { "type": "string" },
+        "pack_id": { "type": "string" },
+        "game_type": { "type": "string" },
+        "current_step": { "type": "number" },
+        "total_steps": { "type": "number" },
+        "state": { "type": "object" },
+        "updated_at": { "type": "string" }
+      },
+      "required": ["user_id", "pack_id", "game_type"]
+    }
+  },
+  "supabase": {
+    "tables": {
+      "profiles": { "schema": "UserProfile" },
+      "games": { "schema": "Game" },
+      "game_sessions": { "schema": "GameSession" },
+      "game_progress": { "schema": "GameProgress" }
+    }
+  }
+}

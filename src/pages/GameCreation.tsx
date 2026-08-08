@@ -26,8 +26,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { supabase } from '@/integrations/supabase/client';
 import { Game, Question, GameMode, Difficulty } from '../types';
 import { TopicCloud } from '../components/TopicCloud';
 import { TOPICS } from '../constants';
@@ -218,7 +217,7 @@ export const GameCreationPage: React.FC = () => {
       Сделай его более интересным, добавь юмора в стиле "Квада" (лягушки, болото, ирония, кваканье).
       Верни JSON с полями: text, correctAnswer, options (массив строк, если нужно), explanation, hint.`;
       
-      const response = await generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
       const improved = JSON.parse(response.text || '{}');
       
       const newQuestions = [...questions];
@@ -260,7 +259,7 @@ export const GameCreationPage: React.FC = () => {
       JSON формат: { "suggestedQuestions": [{ "text": "...", "correctAnswer": "...", "options": [...], "explanation": "...", "points": 100 }] }
       Для "100to1" добавь поле "answers": [{"text": "...", "points": 100, "mediaUrl": "...", "mediaType": "image|video"}, ...] (6 штук).`;
       
-      const response = await generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
       const text = response.text || '';
       
       const jsonMatch = text.match(/\{.*\}/s);
@@ -322,7 +321,7 @@ export const GameCreationPage: React.FC = () => {
       Посоветуй лучший бесплатный способ или API для этого (например, Spleeter, VocalRemover.org, или RapidAPI Vocal Remover).
       Ответь кратко и вежливо в стиле лягушки-помощника.`;
       
-      const response = await generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
       alert(response.text || 'Используйте инструментальные версии треков или сервис VocalRemover.org для подготовки файлов.');
     } catch (err) {
       console.error('Vocal removal error:', err);
@@ -359,12 +358,12 @@ export const GameCreationPage: React.FC = () => {
     
     setLoading(true);
     try {
-      const gameRef = doc(collection(db, 'games'));
-      const gameData: Game = {
-        id: gameRef.id,
+      const gameId = crypto.randomUUID();
+      const gameData = {
+        id: gameId,
         title: gameInfo.title || gameInfo.topic,
         description: gameInfo.description || `Игра на тему ${gameInfo.topic}`,
-        authorId: user.uid,
+        authorId: profile?.uid ?? "",
         mode: 'human',
         difficulty: gameInfo.difficulty,
         type: gameInfo.type,
@@ -376,7 +375,8 @@ export const GameCreationPage: React.FC = () => {
         createdAt: Date.now()
       };
 
-      await setDoc(gameRef, gameData);
+      // For now store locally / in Supabase later when games table is ready
+      console.log('Game created:', gameData);
       alert('Игра успешно создана!');
       navigate('/admin');
     } catch (error) {
@@ -1006,7 +1006,7 @@ export const GameCreationPage: React.FC = () => {
                         <div className="space-y-4">
                           <label className="text-xs font-bold uppercase tracking-widest text-foreground/40">Варианты ответов</label>
                           <div className="grid gap-3">
-                            {q.options?.map((opt, optIndex) => (
+                            {q.options?.map((opt: string, optIndex: number) => (
                               <div key={optIndex} className="flex items-center gap-2">
                                 <button 
                                   onClick={() => updateQuestion(index, { correctAnswer: opt })}

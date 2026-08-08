@@ -1,28 +1,21 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
 
-let supabaseClient: SupabaseClient | null = null;
+export { supabase };
+export const getSupabase = () => supabase;
 
-export const getSupabase = (): SupabaseClient | null => {
-  if (supabaseClient) return supabaseClient;
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return null;
-  }
-
-  try {
-    supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-    return supabaseClient;
-  } catch (err) {
-    console.error('Failed to initialize Supabase client:', err);
-    return null;
-  }
+type StoredGameProgress = {
+  id?: string;
+  user_id: string;
+  pack_id: string;
+  game_type: string;
+  current_step: number;
+  total_steps: number;
+  state: any;
+  created_at?: string;
+  updated_at?: string;
 };
 
-// For backward compatibility if needed, but getSupabase() is preferred
-export const supabase = getSupabase();
+const db = supabase as any;
 
 export const saveGameSession = async (session: {
   userId: string;
@@ -36,11 +29,8 @@ export const saveGameSession = async (session: {
   pricePaid: number;
   isWin?: boolean;
 }) => {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-
   try {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('game_sessions')
       .insert({
         user_id: session.userId,
@@ -59,7 +49,7 @@ export const saveGameSession = async (session: {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as any;
   } catch (err) {
     console.error('Failed to save game session:', err);
     return null;
@@ -73,12 +63,9 @@ export const saveGameProgress = async (progress: {
   currentStep: number;
   totalSteps: number;
   state: any;
-}) => {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-
+}): Promise<StoredGameProgress | null> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('game_progress')
       .upsert({
         user_id: progress.userId,
@@ -95,19 +82,16 @@ export const saveGameProgress = async (progress: {
       .single();
 
     if (error) throw error;
-    return data;
+    return (data as StoredGameProgress) || null;
   } catch (err) {
     console.error('Failed to save game progress:', err);
     return null;
   }
 };
 
-export const getGameProgress = async (userId: string, packId: string, gameType: string) => {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-
+export const getGameProgress = async (userId: string, packId: string, gameType: string): Promise<StoredGameProgress | null> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('game_progress')
       .select('*')
       .eq('user_id', userId)
@@ -116,7 +100,7 @@ export const getGameProgress = async (userId: string, packId: string, gameType: 
       .maybeSingle();
 
     if (error) throw error;
-    return data;
+    return (data as StoredGameProgress | null) || null;
   } catch (err) {
     console.error('Failed to get game progress:', err);
     return null;
@@ -124,11 +108,8 @@ export const getGameProgress = async (userId: string, packId: string, gameType: 
 };
 
 export const deleteGameProgress = async (userId: string, packId: string, gameType: string) => {
-  const supabase = getSupabase();
-  if (!supabase) return null;
-
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('game_progress')
       .delete()
       .eq('user_id', userId)

@@ -6,7 +6,7 @@ import { useFrogSound } from '../hooks/useSound';
 import { AuthModal } from '../components/AuthModal';
 import { TopicCloud } from '../components/TopicCloud';
 import { GameStartModal } from '../components/GameStartModal';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { TOPICS } from '../constants';
 import { 
   Search, 
@@ -119,6 +119,7 @@ export const HomePage = () => {
       path: '/game/melody',
       color: 'bg-purple-600',
       rules: 'Слушайте фрагмент мелодии и выбирайте правильный вариант ответа.',
+      comingSoon: true,
     },
     {
       id: 'jeopardy',
@@ -223,7 +224,7 @@ export const HomePage = () => {
             </button>
           </div>
           
-          {!user ? (
+          {!user && !profile && (
             <button 
               onClick={() => { playCroak(); setIsAuthModalOpen(true); }}
               className="btn-primary mt-6 md:mt-8 px-10 md:px-16 py-4 md:py-6 text-lg md:text-2xl group relative overflow-hidden"
@@ -231,15 +232,6 @@ export const HomePage = () => {
               <span className="relative z-10">Начать играть</span>
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
             </button>
-          ) : (
-            <div className="mt-6 md:mt-8 flex flex-col items-center gap-4">
-              {!profile && (
-                <div className="flex items-center gap-3 text-primary animate-pulse">
-                  <Zap className="animate-bounce" />
-                  <span className="text-sm font-bold uppercase tracking-widest">Синхронизация профиля...</span>
-                </div>
-              )}
-            </div>
           )}
         </motion.div>
       </section>
@@ -269,10 +261,10 @@ export const HomePage = () => {
             // Create game session in Supabase
             if (user) {
               try {
-                const supabase = getSupabase();
+                
                 if (supabase) {
                   await supabase.from('game_sessions').insert({
-                    user_id: user.uid,
+                    user_id: profile?.uid ?? "",
                     game_id: selectedGame.id,
                     topic: options.topic || 'General',
                     difficulty: options.difficulty,
@@ -303,7 +295,7 @@ export const HomePage = () => {
 };
 
 const OfflineRegistrationModal = ({ game, onClose }: any) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [step, setStep] = useState<'schedule' | 'form' | 'success'>('schedule');
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [formData, setFormData] = useState({
@@ -324,12 +316,12 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
     if (!user) return;
     
     try {
-      const supabase = getSupabase();
+      
       if (supabase) {
         const { error } = await supabase
           .from('offline_registrations')
           .insert({
-            user_id: user.uid,
+            user_id: profile?.uid ?? "",
             city: selectedSession.city,
             date: selectedSession.date,
             team_name: formData.teamName,
@@ -468,14 +460,14 @@ const OfflineRegistrationModal = ({ game, onClose }: any) => {
 };
 
 const GameCard = ({ id, title, description, onSelect, image, color, questionCount, comingSoon }: any) => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { playCroak } = useFrogSound();
 
   const handlePlay = () => {
     if (comingSoon) return;
     playCroak();
-    if (!user) {
+    if (!user && !profile) {
       setIsAuthModalOpen(true);
     } else {
       onSelect();

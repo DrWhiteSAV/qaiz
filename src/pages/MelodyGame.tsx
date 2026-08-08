@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
+import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Music, Send, AlertCircle, CheckCircle2, XCircle, RotateCcw, Home, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -9,6 +10,7 @@ import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress 
 import { GameError } from '../components/GameError';
 
 import { GameSubmissionModal } from '../components/GameSubmissionModal';
+import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
 
 export function MelodyGame() {
   const { profile, user } = useAuth();
@@ -33,12 +35,13 @@ export function MelodyGame() {
   const [hasProgress, setHasProgress] = useState(false);
   const [showSubmission, setShowSubmission] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState(false);
   const [isBuzzed, setIsBuzzed] = useState(false);
   const [buzzerPlayer, setBuzzerPlayer] = useState<string | null>(null);
 
   const startCheckTimer = () => {
-    setCheckTimer(20);
+    setCheckTimer(30);
     if (checkInterval) clearInterval(checkInterval);
     const interval = setInterval(() => {
       setCheckTimer(prev => {
@@ -61,7 +64,7 @@ export function MelodyGame() {
   useEffect(() => {
     const loadProgress = async () => {
       if (!user || !options.packId) return;
-      const progress = await getGameProgress(user.uid, options.packId, 'melody');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'melody');
       if (progress) {
         setHasProgress(true);
       }
@@ -74,7 +77,7 @@ export function MelodyGame() {
     const saveProgress = async () => {
       if (gameState === 'playing' && user && options.packId && questions.length > 0) {
         await saveGameProgress({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           packId: options.packId,
           gameType: 'melody',
           currentStep: currentIndex,
@@ -96,7 +99,7 @@ export function MelodyGame() {
     if (!user || !options.packId) return;
     setLoading(true);
     try {
-      const progress = await getGameProgress(user.uid, options.packId, 'melody');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'melody');
       if (progress && progress.state) {
         const { questions, currentIndex, score, correctCount, topic } = progress.state;
         setQuestions(questions);
@@ -154,12 +157,13 @@ export function MelodyGame() {
     startCheckTimer();
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = options.isPurchased ? 0 : 3;
+    const questionCost = options.isPurchased ? 0 : 1;
 
     try {
-      // Deduct balance first
       if (questionCost > 0) {
-        await balanceService.deductBalance(user!.uid, questionCost);
+        await balanceService.deductBalance(profile?.uid ?? "", questionCost);
+        setShowCoinAnimation(true);
+        setTimeout(() => setShowCoinAnimation(false), 1500);
       }
 
       const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
@@ -191,7 +195,7 @@ export function MelodyGame() {
             const finalScore = score + (result.isCorrect ? currentPoints : (result.isCorrect === false ? -currentPoints : 0));
             const finalCorrectCount = correctCount + (result.isCorrect ? 1 : 0);
             await saveGameSession({
-              userId: user.uid,
+              userId: profile?.uid ?? "",
               gameId: 'melody',
               score: Math.max(0, finalScore),
               totalQuestions: 25,
@@ -203,7 +207,7 @@ export function MelodyGame() {
               isWin: finalCorrectCount >= 15 // 60% for win
             });
             if (options.packId) {
-              await deleteGameProgress(user.uid, options.packId, 'melody');
+              await deleteGameProgress(profile?.uid ?? "", options.packId, 'melody');
             }
           }
           setGameState('result');
@@ -214,7 +218,7 @@ export function MelodyGame() {
       console.error('Error checking answer:', error);
       // Refund if AI check failed
       if (questionCost > 0) {
-        await balanceService.addBalance(user!.uid, questionCost);
+        await balanceService.addBalance(profile?.uid ?? "", questionCost);
       }
       setChecking(false);
       stopCheckTimer();
@@ -244,7 +248,7 @@ export function MelodyGame() {
     setShowSubmission(false);
   };
 
-  if (gameState === 'setup' || (options && gameState === 'loading' && questions.length === 0)) {
+  if (gameState === 'setup') {
     return (
       <div className="mx-auto max-w-2xl space-y-8 rounded-3xl border border-primary/20 bg-primary/5 p-8">
         <div className="text-center">
@@ -284,34 +288,16 @@ export function MelodyGame() {
 
   if (gameState === 'loading') {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm text-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: 1,
-            scale: [0.8, 1, 0.95, 1],
-            rotate: [0, 2, -2, 0]
-          }}
-          transition={{ 
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative w-full max-w-[70vw] aspect-square flex items-center justify-center"
-        >
-          <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
-          <img 
-            src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
-            alt="Logo" 
-            className="relative w-full h-full object-contain drop-shadow-2xl"
-            referrerPolicy="no-referrer"
-          />
-        </motion.div>
-        <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xl font-black text-primary animate-pulse uppercase tracking-widest">Настраиваем инструменты...</p>
-        </div>
-      </div>
+      <GenerationLoadingScreen 
+        title="Уквадай Мелодию"
+        messages={[
+          'Подключаемся к ProTalk...',
+          'Подбираем мелодии...',
+          'Готовим подсказки и ответы...',
+          'Настраиваем музыкальный раунд...',
+          'Почти готово...',
+        ]}
+      />
     );
   }
 
@@ -338,7 +324,7 @@ export function MelodyGame() {
         <div className="flex flex-col sm:flex-row gap-4">
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'melody');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'melody');
               window.location.reload();
             }} 
             className="btn-primary flex-1 py-4 text-xl"
@@ -347,7 +333,7 @@ export function MelodyGame() {
           </button>
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'melody');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'melody');
               navigate('/');
             }} 
             className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
@@ -362,6 +348,7 @@ export function MelodyGame() {
             gameType="Уквадай Мелодию"
             onClose={handleCloseSubmission}
             onSubmit={handleGameSubmission}
+              userRole={profile?.role || 'player'}
           />
         )}
       </div>

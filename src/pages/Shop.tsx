@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { Search, ShoppingCart, Zap, Star, Trophy, Music, Users, HelpCircle, Gamepad2, X, CheckCircle2, Plus, CreditCard, PackageCheck, Tag, User, Hash, Coins, Bot, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 import { SHOP_ITEMS } from '../constants';
 
@@ -71,8 +71,8 @@ export const ShopPage = () => {
       const matchesTab = filter === 'all' || 
                          (filter === 'free' && item.price === 0) || 
                          (filter === 'paid' && item.price > 0) || 
-                         (filter === 'purchased' && profile?.purchasedGames?.includes(item.id)) || 
-                         (filter === 'played' && profile?.playedGames?.includes(item.id));
+                         (filter === 'purchased' && (profile as any)?.purchasedGames?.includes(item.id)) || 
+                         (filter === 'played' && (profile as any)?.playedGames?.includes(item.id));
 
       return matchesSearch && matchesType && matchesDifficulty && matchesSource && matchesPricing && matchesPriceRange && matchesTab;
     });
@@ -114,12 +114,12 @@ export const ShopPage = () => {
       await updateBalance(profile.balance - item.price);
       
       // Save purchase to Supabase
-      const supabase = getSupabase();
+      
       if (supabase) {
         const { error } = await supabase
           .from('purchases')
           .insert({
-            user_id: user.uid,
+            user_id: profile?.uid ?? "",
             item_id: item.id,
             price_paid: item.price,
             purchased_at: new Date().toISOString()
@@ -332,7 +332,7 @@ export const ShopPage = () => {
 
       <div className="grid gap-[5%] md:gap-6 grid-cols-2 lg:grid-cols-6">
         {filteredItems.map((item) => {
-          const isPurchased = profile?.purchasedGames?.includes(item.id) || item.price === 0;
+          const isPurchased = (profile as any)?.purchasedGames?.includes(item.id) || item.price === 0;
           const inCart = isInCart(item.id);
 
           return (
@@ -540,7 +540,7 @@ export const ShopPage = () => {
               )}
             </div>
 
-            {profile?.purchasedGames?.includes(selectedItem.id) || selectedItem.price === 0 ? (
+            {(profile as any)?.purchasedGames?.includes(selectedItem.id) || selectedItem.price === 0 ? (
               <button 
                 onClick={() => {
                   // Logic to start game

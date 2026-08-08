@@ -27,8 +27,8 @@ export const BackgroundAnimation: React.FC = () => {
       size: number;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvas!.width;
+        this.y = Math.random() * canvas!.height;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
         this.size = Math.random() * 2;
@@ -38,8 +38,8 @@ export const BackgroundAnimation: React.FC = () => {
         this.x += this.vx;
         this.y += this.vy;
 
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+        if (this.x < 0 || this.x > canvas!.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas!.height) this.vy *= -1;
       }
 
       draw() {
@@ -62,8 +62,8 @@ export const BackgroundAnimation: React.FC = () => {
       rotationSpeed: number;
 
       constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
+        this.x = Math.random() * canvas!.width;
+        this.y = Math.random() * canvas!.height;
         this.vx = (Math.random() - 0.5) * 0.8;
         this.vy = (Math.random() - 0.5) * 0.8;
         this.size = 20 + Math.random() * 30;
@@ -76,10 +76,10 @@ export const BackgroundAnimation: React.FC = () => {
         this.y += this.vy;
         this.rotation += this.rotationSpeed;
 
-        if (this.x < -50) this.x = canvas.width + 50;
-        if (this.x > canvas.width + 50) this.x = -50;
-        if (this.y < -50) this.y = canvas.height + 50;
-        if (this.y > canvas.height + 50) this.y = -50;
+        if (this.x < -50) this.x = canvas!.width + 50;
+        if (this.x > canvas!.width + 50) this.x = -50;
+        if (this.y < -50) this.y = canvas!.height + 50;
+        if (this.y > canvas!.height + 50) this.y = -50;
       }
 
       draw() {

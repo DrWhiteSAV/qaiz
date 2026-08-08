@@ -2,13 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
+import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle, HelpCircle, Zap, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { saveGameSession } from '../supabase';
+import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
 import { GameError } from '../components/GameError';
 
 import { GameChat, ChatMessage } from '../components/GameChat';
+import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
 
 export function BlitzGame() {
   const { profile, user } = useAuth();
@@ -30,9 +32,65 @@ export function BlitzGame() {
   const [checkTimer, setCheckTimer] = useState(0);
   const [checkInterval, setCheckInterval] = useState<any>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [hasProgress, setHasProgress] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(false);
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
+
+  // Load progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!user || !options.packId) return;
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'blitz');
+      if (progress) {
+        setHasProgress(true);
+      }
+    };
+    loadProgress();
+  }, [user, options.packId]);
+
+  // Save progress whenever state changes
+  useEffect(() => {
+    const doSave = async () => {
+      if (gameState === 'playing' && user && options.packId && questions.length > 0) {
+        await saveGameProgress({
+          userId: profile?.uid ?? "",
+          packId: options.packId,
+          gameType: 'blitz',
+          currentStep: currentIndex,
+          totalSteps: 10,
+          state: { questions, currentIndex, score, topic, difficulty, timeLeft }
+        });
+      }
+    };
+    doSave();
+  }, [currentIndex, score, gameState, questions, user, options.packId]);
+
+  const handleResume = async () => {
+    if (!user || !options.packId) return;
+    setLoadingProgress(true);
+    try {
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'blitz');
+      if (progress && progress.state) {
+        const s = progress.state as any;
+        setQuestions(s.questions);
+        setCurrentIndex(s.currentIndex);
+        setScore(s.score);
+        setTopic(s.topic);
+        setDifficulty(s.difficulty);
+        setTimeLeft(s.timeLeft || 60);
+        setGameState('playing');
+      } else {
+        startLevel();
+      }
+    } catch {
+      startLevel();
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
 
   const startCheckTimer = () => {
-    setCheckTimer(20);
+    setCheckTimer(30);
     if (checkInterval) clearInterval(checkInterval);
     const interval = setInterval(() => {
       setCheckTimer(prev => {
@@ -55,7 +113,7 @@ export function BlitzGame() {
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       senderId: '1',
-      senderName: profile?.displayName || 'Игрок 1',
+      senderName: profile?.display_name || 'Игрок 1',
       text,
       isBot: false,
       timestamp: Date.now()
@@ -98,12 +156,15 @@ export function BlitzGame() {
     startCheckTimer();
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = options.isPurchased ? 0 : 3;
+    const questionCost = options.isPurchased ? 0 : 1;
 
     try {
-      // Deduct balance first
+      // Deduct exactly 1 ruble
       if (questionCost > 0) {
-        await balanceService.deductBalance(user!.uid, questionCost);
+        await balanceService.deductBalance(profile?.uid ?? "", questionCost);
+        setShowCoinAnimation(true);
+        setTimeout(() => setShowCoinAnimation(false), 1500);
+        if (profile) (profile as any).balance = (profile.balance || 0) - 1;
       }
       
       const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
@@ -117,7 +178,7 @@ export function BlitzGame() {
       console.error('Error checking answer:', error);
       // Refund if AI check failed
       if (questionCost > 0) {
-        await balanceService.addBalance(user!.uid, questionCost);
+        await balanceService.addBalance(profile?.uid ?? "", questionCost);
       }
       stopCheckTimer();
     } finally {
@@ -138,7 +199,7 @@ export function BlitzGame() {
       if (user) {
         const finalScore = score;
         await saveGameSession({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           gameId: 'blitz',
           score: finalScore,
           totalQuestions: questions.length,
@@ -147,14 +208,17 @@ export function BlitzGame() {
           difficulty: options.difficulty,
           topic: options.topic || topic,
           pricePaid: options.price,
-          isWin: finalScore >= 7 // Assuming 7/10 is a win for Blitz
+          isWin: finalScore >= 7
         });
+        if (options.packId) {
+          await deleteGameProgress(profile?.uid ?? "", options.packId, 'blitz');
+        }
       }
       setGameState('result');
     }
   };
 
-  useEffect(() => {
+  useEffect(() => {  
     if (gameState === 'playing' && timeLeft > 0 && !feedback && !checking) {
       const timer = setInterval(() => setTimeLeft(t => t - 1), 1000);
       return () => clearInterval(timer);
@@ -205,46 +269,40 @@ export function BlitzGame() {
           </div>
         </div>
 
-        <button 
-          onClick={startLevel}
-          className="w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
-        >
-          Начать игру
-        </button>
+        <div className="flex flex-col gap-4">
+          <button 
+            onClick={startLevel}
+            className="w-full rounded-full bg-primary py-4 text-xl font-black uppercase tracking-tighter text-background transition-transform hover:scale-105"
+          >
+            Начать игру
+          </button>
+          {hasProgress && (
+            <button 
+              onClick={handleResume}
+              disabled={loadingProgress}
+              className="w-full rounded-full border-2 border-primary py-4 text-xl font-black uppercase tracking-tighter text-primary transition-transform hover:scale-105 flex items-center justify-center gap-2"
+            >
+              {loadingProgress ? <Loader2 className="animate-spin" /> : <RotateCcw size={24} />}
+              Продолжить игру
+            </button>
+          )}
+        </div>
       </div>
     );
   }
 
   if (gameState === 'loading') {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm text-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: 1,
-            scale: [0.8, 1, 0.95, 1],
-            rotate: [0, 2, -2, 0]
-          }}
-          transition={{ 
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
-        >
-          <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
-          <img 
-            src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
-            alt="Logo" 
-            className="relative w-full h-full object-contain drop-shadow-2xl"
-            referrerPolicy="no-referrer"
-          />
-        </motion.div>
-        <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xl font-black text-primary animate-pulse uppercase tracking-widest">ИИ генерирует вопросы...</p>
-        </div>
-      </div>
+      <GenerationLoadingScreen 
+        title="КвИИЗ"
+        messages={[
+          'Подключаемся к нейросети...',
+          'Генерируем уникальные вопросы...',
+          'Проверяем корректность ответов...',
+          'Формируем игровой пакет...',
+          'Почти готово...',
+        ]}
+      />
     );
   }
 
@@ -291,6 +349,7 @@ export function BlitzGame() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      <CoinAnimation show={showCoinAnimation} />
       <AnimatePresence>
         {checking && (
           <motion.div 
@@ -447,7 +506,7 @@ export function BlitzGame() {
           <GameChat 
             messages={chatMessages} 
             onSendMessage={handleSendMessage} 
-            currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+            currentUser={{ id: '1', name: profile?.display_name || 'Игрок 1' }} 
           />
         </div>
       )}

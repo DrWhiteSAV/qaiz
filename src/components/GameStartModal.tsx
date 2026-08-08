@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Info, HelpCircle } from 'lucide-react';
 import { TopicCloud } from './TopicCloud';
-import { TOPICS, DIFFICULTIES, AI_TEMPLATES, AITemplate } from '../constants';
-import { getSupabase } from '../supabase';
+import { DIFFICULTIES, AI_TEMPLATES, AITemplate } from '../constants';
+import { supabase } from '@/integrations/supabase/client';
 import { Users, Bot, User, Globe, Monitor } from 'lucide-react';
 
 interface GameStartModalProps {
@@ -15,27 +15,27 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
   const [playMode, setPlayMode] = useState<'single' | 'multi' | 'ai'>('single');
   const [multiMode, setMultiMode] = useState<'offline' | 'online'>('offline');
   const [difficulty, setDifficulty] = useState('people');
-  const [selectedTopic, setSelectedTopic] = useState('Общие вопросы');
+  const [selectedTopic, setSelectedTopic] = useState('Общие знания');
   const [customTopic, setCustomTopic] = useState('');
-  const [authorTopics, setAuthorTopics] = useState<string[]>([]);
+  const [dbTopics, setDbTopics] = useState<string[]>([]);
   const [selectedAI, setSelectedAI] = useState<string[]>([AI_TEMPLATES[0].id]);
 
   useEffect(() => {
-    const fetchAuthorTopics = async () => {
+    const fetchTopics = async () => {
       try {
-        const supabase = getSupabase();
-        if (supabase) {
-          const { data } = await supabase.from('games').select('topic');
-          if (data) {
-            const uniqueTopics = Array.from(new Set(data.map(g => g.topic)));
-            setAuthorTopics(uniqueTopics);
-          }
+        const { data } = await supabase
+          .from('topics')
+          .select('name')
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (data) {
+          setDbTopics(data.map((t: any) => t.name));
         }
       } catch (error) {
-        console.error('Error fetching author topics:', error);
+        console.error('Error fetching topics:', error);
       }
     };
-    fetchAuthorTopics();
+    fetchTopics();
   }, []);
 
 
@@ -171,7 +171,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
             <div className="space-y-3">
               <label className="text-xs font-bold uppercase tracking-widest text-[#0b1c1c] dark:text-white/60">Выберите тему</label>
               <TopicCloud 
-                topics={game.id === 'melody' ? ['Общие вопросы', ...authorTopics] : TOPICS}
+                topics={dbTopics.length > 0 ? dbTopics : ['Общие знания']}
                 selectedTopic={selectedTopic}
                 onSelect={(topic) => {
                   setSelectedTopic(topic);
@@ -218,16 +218,26 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
         </div>
 
         <button 
-          onClick={() => {
-            if (game.id === 'melody' && authorTopics.length === 0) {
-              alert('Игра "Уквадай Мелодию" временно недоступна (нет авторских игр).');
+          onClick={async () => {
+            // Save custom topic to DB if new
+            const finalTopic = customTopic || selectedTopic;
+            if (finalTopic && !dbTopics.includes(finalTopic)) {
+              try {
+                await supabase.from('topics').insert({ name: finalTopic }).single();
+              } catch (e) {
+                // ignore duplicate
+              }
+            }
+
+            if (game.id === 'melody' && dbTopics.length === 0) {
+              alert('Игра "Уквадай Мелодию" временно недоступна.');
               return;
             }
             onStart({ 
               mode: 'lite', 
               difficulty, 
               price: totalPrice, 
-              topic: customTopic || selectedTopic, 
+              topic: finalTopic, 
               playMode,
               multiMode: playMode === 'multi' ? multiMode : undefined,
               aiOpponents: playMode === 'ai' ? selectedAI : undefined
@@ -235,7 +245,7 @@ export const GameStartModal = ({ game, onClose, onStart }: GameStartModalProps) 
           }}
           className="w-full py-4 text-xl rounded-2xl bg-[#83c42e] text-[#f4f1ee] font-black uppercase tracking-widest shadow-[8px_8px_0px_0px_#0b1c1c] border-2 border-[#f4f1ee] hover:scale-105 transition-all"
         >
-          {game.id === 'melody' && authorTopics.length === 0 ? 'Скоро' : 'Начать игру'}
+          {game.id === 'melody' && dbTopics.length === 0 ? 'Скоро' : 'Начать игру'}
         </button>
       </div>
     </div>

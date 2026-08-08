@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GameStartModal } from '../components/GameStartModal';
 import { useFrogSound } from '../hooks/useSound';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Gamepad2, 
   Users, 
@@ -19,7 +19,7 @@ import {
 
 export function GamesPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { playCroak } = useFrogSound();
   const [activeCategory, setActiveCategory] = useState<'all' | 'single' | 'multi' | 'offline'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,10 +168,10 @@ export function GamesPage() {
             // Create game session in Supabase
             if (user) {
               try {
-                const supabase = getSupabase();
+                
                 if (supabase) {
                   await supabase.from('game_sessions').insert({
-                    user_id: user.uid,
+                    user_id: profile?.uid ?? "",
                     game_id: selectedGame.id,
                     topic: options.topic || 'General',
                     difficulty: options.difficulty,

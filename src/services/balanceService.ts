@@ -1,75 +1,66 @@
-import { doc, updateDoc, increment, getDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export const balanceService = {
   async checkBalance(userId: string, requiredAmount: number) {
-    if (!db) return false;
     try {
-      const userRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) return false;
-      return userSnap.data().balance >= requiredAmount;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('uid', userId)
+        .single();
+
+      if (error || !data) return false;
+      return (data.balance || 0) >= requiredAmount;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `users/${userId}`);
+      console.error('Error checking balance:', error);
       return false;
     }
   },
 
   async deductBalance(userId: string, amount: number) {
-    if (!db) return false;
     try {
-      // Update Firestore
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        balance: increment(-amount)
-      });
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('uid', userId)
+        .single();
 
-      // Update Supabase
-      const supabase = getSupabase();
-      if (supabase) {
-        // Get current balance first to be safe, or just use increment logic if Supabase supports it
-        // For simplicity and consistency with current profile sync, we'll fetch and update
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const newBalance = userSnap.data().balance;
-          await supabase
-            .from('profiles')
-            .update({ balance: newBalance })
-            .eq('id', userId);
-        }
-      }
+      if (fetchError || !profile) return false;
+
+      const newBalance = (profile.balance || 0) - amount;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ balance: newBalance })
+        .eq('uid', userId);
+
+      if (error) throw error;
       return true;
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.error('Error deducting balance:', error);
       return false;
     }
   },
 
   async addBalance(userId: string, amount: number) {
-    if (!db) return false;
     try {
-      // Update Firestore
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        balance: increment(amount)
-      });
+      const { data: profile, error: fetchError } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('uid', userId)
+        .single();
 
-      // Update Supabase
-      const supabase = getSupabase();
-      if (supabase) {
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const newBalance = userSnap.data().balance;
-          await supabase
-            .from('profiles')
-            .update({ balance: newBalance })
-            .eq('id', userId);
-        }
-      }
+      if (fetchError || !profile) return false;
+
+      const newBalance = (profile.balance || 0) + amount;
+      const { error } = await supabase
+        .from('profiles')
+        .update({ balance: newBalance })
+        .eq('uid', userId);
+
+      if (error) throw error;
       return true;
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      console.error('Error adding balance:', error);
       return false;
     }
   }

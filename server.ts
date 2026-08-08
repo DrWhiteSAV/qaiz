@@ -1,8 +1,19 @@
+import dns from 'dns';
+if (dns.setDefaultResultOrder) {
+  try {
+    dns.setDefaultResultOrder('ipv4first');
+  } catch (e) {
+    console.warn('DNS result order setup warning:', e);
+  }
+}
+
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import TelegramBot from 'node-telegram-bot-api';
 import dotenv from 'dotenv';
+import { getDb, performDailyDatabaseBackup } from './src/server/db';
+import { setupApiRoutes } from './src/server/routes';
 
 dotenv.config();
 
@@ -12,6 +23,18 @@ const PORT = 3000;
 async function startServer() {
   const app = express();
   app.use(express.json());
+
+  // Initialize SQLite Database
+  await getDb();
+  console.log('[SQLite Engine] Database initialized successfully.');
+
+  // Initialize API routes
+  setupApiRoutes(app);
+
+  // Daily DB Backup Cron Job (every 24h)
+  setInterval(() => {
+    performDailyDatabaseBackup().catch(err => console.error('[Backup Error]:', err));
+  }, 24 * 60 * 60 * 1000);
 
   // Initialize Telegram Bot
   if (BOT_TOKEN) {
@@ -39,13 +62,10 @@ async function startServer() {
       const startParam = match ? match[1] : '';
 
       if (startParam === 'link') {
-        // Obfuscate the Telegram ID as requested: sdf + id + gh
         const code = `sdf${chatId}gh`;
-        
         bot.sendMessage(chatId, `Ваш код для привязки аккаунта в Квайз:\n\n<code>${code}</code>\n\nСкопируйте этот код и вставьте его в приложении.`, {
           parse_mode: 'HTML'
         });
-        
         console.log(`Generated linking code ${code} for chat ${chatId}`);
       }
     });

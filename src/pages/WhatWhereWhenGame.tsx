@@ -2,11 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { geminiService } from '../services/gemini';
 import { balanceService } from '../services/balanceService';
+import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle, Users, User, HelpCircle, Zap, Loader2, RotateCcw, Home } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../supabase';
 import { SpinningTable } from '../components/SpinningTable';
+import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
+import { GameError } from '../components/GameError';
 
 import { GameChat, ChatMessage } from '../components/GameChat';
 import { GameSubmissionModal } from '../components/GameSubmissionModal';
@@ -17,7 +20,8 @@ export function WhatWhereWhenGame() {
   const location = useLocation();
   const options = location.state || { mode: 'human', difficulty: 'genius', price: 33 };
   
-  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'feedback' | 'result'>(options ? 'loading' : 'setup');
+  const [gameState, setGameState] = useState<'setup' | 'loading' | 'playing' | 'feedback' | 'result' | 'error'>(options ? 'loading' : 'setup');
+  const [errorMessage, setErrorMessage] = useState('');
   const [topic, setTopic] = useState(options.topic || 'Логика и факты');
   const [expertScore, setExpertScore] = useState(0);
   const [viewerScore, setViewerScore] = useState(0);
@@ -34,12 +38,13 @@ export function WhatWhereWhenGame() {
   const [hasProgress, setHasProgress] = useState(false);
   const [showSubmission, setShowSubmission] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showCoinAnimation, setShowCoinAnimation] = useState(false);
 
   // Load progress on mount
   useEffect(() => {
     const loadProgress = async () => {
       if (!user || !options.packId) return;
-      const progress = await getGameProgress(user.uid, options.packId, 'whatwherewhen');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'whatwherewhen');
       if (progress) {
         setHasProgress(true);
       }
@@ -52,7 +57,7 @@ export function WhatWhereWhenGame() {
     const saveProgress = async () => {
       if (gameState === 'playing' && user && options.packId && questions.length > 0) {
         await saveGameProgress({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           packId: options.packId,
           gameType: 'whatwherewhen',
           currentStep: expertScore + viewerScore,
@@ -76,7 +81,7 @@ export function WhatWhereWhenGame() {
     if (!user || !options.packId) return;
     setLoading(true);
     try {
-      const progress = await getGameProgress(user.uid, options.packId, 'whatwherewhen');
+      const progress = await getGameProgress(profile?.uid ?? "", options.packId, 'whatwherewhen');
       if (progress && progress.state) {
         const { expertScore, viewerScore, questions, currentIndex, answeredIndices, chatMessages, topic } = progress.state;
         setExpertScore(expertScore);
@@ -104,7 +109,7 @@ export function WhatWhereWhenGame() {
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       senderId: '1',
-      senderName: profile?.displayName || 'Игрок 1',
+      senderName: profile?.display_name || 'Игрок 1',
       text,
       isBot: false,
       timestamp: Date.now()
@@ -138,7 +143,8 @@ export function WhatWhereWhenGame() {
       setTimeLeft(60);
     } catch (error) {
       console.error('Error generating questions:', error);
-      setGameState('setup');
+      setErrorMessage(error instanceof Error ? error.message : 'Не удалось сгенерировать игру.');
+      setGameState('error');
     }
   };
 
@@ -147,11 +153,13 @@ export function WhatWhereWhenGame() {
     setChecking(true);
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = options.isPurchased ? 0 : 3;
+    const questionCost = options.isPurchased ? 0 : 1;
     if (questionCost > 0) {
-      await balanceService.deductBalance(user!.uid, questionCost);
+      await balanceService.deductBalance(profile?.uid ?? "", questionCost);
+      setShowCoinAnimation(true);
+      setTimeout(() => setShowCoinAnimation(false), 1500);
+      if (profile) (profile as any).balance = (profile.balance || 0) - 1;
     }
-
     const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
     setFeedback(result);
     
@@ -176,7 +184,7 @@ export function WhatWhereWhenGame() {
       // Save session
       if (user) {
         await saveGameSession({
-          userId: user.uid,
+          userId: profile?.uid ?? "",
           gameId: 'whatwherewhen',
           score: expertScore * 1000,
           totalQuestions: expertScore + viewerScore,
@@ -188,7 +196,7 @@ export function WhatWhereWhenGame() {
           isWin: expertScore >= 6
         });
         if (options.packId) {
-          await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+          await deleteGameProgress(profile?.uid ?? "", options.packId, 'whatwherewhen');
         }
       }
       setGameState('result');
@@ -220,7 +228,9 @@ export function WhatWhereWhenGame() {
       if (userAnswer.trim()) {
         handleAnswer();
       } else {
-        setFeedback({ isCorrect: false, explanation: 'Время вышло! Вы не ввели ответ.' });
+        const currentQuestion = questions[currentIndex];
+        setFeedback({ isCorrect: false, explanation: `Время вышло! Правильный ответ: ${currentQuestion?.correctAnswer || 'Не определён'}${currentQuestion?.explanation ? '. ' + currentQuestion.explanation : ''}` });
+        setViewerScore(v => v + 1);
         setGameState('feedback');
       }
     }
@@ -238,7 +248,7 @@ export function WhatWhereWhenGame() {
     setShowSubmission(false);
   };
 
-  if (gameState === 'setup' || (options && gameState === 'loading' && questions.length === 0)) {
+  if (gameState === 'setup') {
     return (
       <div className="mx-auto max-w-2xl space-y-8 rounded-3xl border border-primary/20 bg-primary/5 p-8">
         <div className="text-center">
@@ -278,33 +288,27 @@ export function WhatWhereWhenGame() {
 
   if (gameState === 'loading') {
     return (
-      <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/85 backdrop-blur-sm text-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ 
-            opacity: 1,
-            scale: [0.8, 1, 0.95, 1],
-            rotate: [0, 2, -2, 0]
-          }}
-          transition={{ 
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative w-full max-w-[70vw] md:max-w-[40vw] aspect-square flex items-center justify-center"
-        >
-          <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
-          <img 
-            src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
-            alt="Logo" 
-            className="relative w-full h-full object-contain drop-shadow-2xl"
-            referrerPolicy="no-referrer"
-          />
-        </motion.div>
-        <div className="mt-8 flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="text-xl font-black text-primary animate-pulse uppercase tracking-widest">Крутим волчок...</p>
-        </div>
+      <GenerationLoadingScreen 
+        title="Что? Где? Квада?"
+        messages={[
+          'Ищем телезрителей...',
+          'Формулируем вопросы...',
+          'Проверяем логику ответов...',
+          'Настраиваем волчок...',
+          'Почти готово...',
+        ]}
+      />
+    );
+  }
+
+  if (gameState === 'error') {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-4">
+        <GameError
+          message={errorMessage}
+          onRetry={startLevel}
+          onReturn={() => navigate('/')}
+        />
       </div>
     );
   }
@@ -329,7 +333,7 @@ export function WhatWhereWhenGame() {
         <div className="flex flex-col sm:flex-row gap-4">
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'whatwherewhen');
               window.location.reload();
             }} 
             className="btn-primary flex-1 py-4 text-xl"
@@ -338,7 +342,7 @@ export function WhatWhereWhenGame() {
           </button>
           <button 
             onClick={async () => {
-              if (user && options.packId) await deleteGameProgress(user.uid, options.packId, 'whatwherewhen');
+              if (user && options.packId) await deleteGameProgress(profile?.uid ?? "", options.packId, 'whatwherewhen');
               navigate('/');
             }} 
             className="bg-foreground/10 text-foreground hover:bg-foreground/20 px-12 py-4 text-xl rounded-full font-black uppercase transition-all flex items-center gap-2 justify-center"
@@ -353,6 +357,7 @@ export function WhatWhereWhenGame() {
             gameType="Что Где Квада"
             onClose={handleCloseSubmission}
             onSubmit={handleGameSubmission}
+              userRole={profile?.role || 'player'}
           />
         )}
       </div>
@@ -544,7 +549,7 @@ export function WhatWhereWhenGame() {
           <GameChat 
             messages={chatMessages} 
             onSendMessage={handleSendMessage} 
-            currentUser={{ id: '1', name: profile?.displayName || 'Игрок 1' }} 
+            currentUser={{ id: '1', name: profile?.display_name || 'Игрок 1' }} 
           />
         </div>
       )}

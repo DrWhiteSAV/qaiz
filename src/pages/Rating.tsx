@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Star, User } from 'lucide-react';
-import { getSupabase } from '../supabase';
+import { Trophy, Medal } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { UserAvatar } from '../components/UserAvatar';
 
 export const RatingPage = () => {
   const [leaders, setLeaders] = useState<any[]>([]);
@@ -12,7 +13,7 @@ export const RatingPage = () => {
 
   const fetchLeaders = async () => {
     try {
-      const supabase = getSupabase();
+      
       if (supabase) {
         const { data, error } = await supabase
           .from('profiles')
@@ -54,13 +55,7 @@ export const RatingPage = () => {
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-background/60 font-black text-primary border border-primary/20">
                   {index + 1}
                 </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 overflow-hidden border border-primary/20">
-                  {leader.photo_url ? (
-                    <img src={leader.photo_url} alt={leader.display_name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <User size={24} className="text-primary" />
-                  )}
-                </div>
+                <UserAvatar avatarUrl={leader.avatar_url} displayName={leader.display_name} size="md" />
                 <div>
                   <p className="font-bold text-lg leading-none">{leader.display_name}</p>
                   <p className="text-xs text-foreground/40 mt-1 uppercase tracking-widest">{leader.role}</p>

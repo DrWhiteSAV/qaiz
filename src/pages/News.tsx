@@ -10,9 +10,10 @@ import {
   User,
   Loader2
 } from 'lucide-react';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export function NewsPage() {
+  const newsDb = supabase as any;
   const { profile } = useAuth();
   const [news, setNews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,10 +24,9 @@ export function NewsPage() {
 
   const fetchNews = async () => {
     setLoading(true);
-    const supabase = getSupabase();
-    if (!supabase) return;
+    
 
-    const { data, error } = await supabase
+    const { data, error } = await newsDb
       .from('news')
       .select('*')
       .order('created_at', { ascending: false });

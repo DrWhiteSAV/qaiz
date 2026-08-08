@@ -11,7 +11,7 @@ import {
   RefreshCcw
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export function BillingPage() {
   const { profile, user } = useAuth();
@@ -27,7 +27,7 @@ export function BillingPage() {
 
   const fetchPurchaseHistory = async () => {
     setLoading(true);
-    const supabase = getSupabase();
+    
     if (!supabase || !user) {
       setLoading(false);
       return;
@@ -37,7 +37,7 @@ export function BillingPage() {
       const { data, error } = await supabase
         .from('purchases')
         .select('*')
-        .eq('user_id', user.uid)
+        .eq('user_id', profile?.uid ?? "")
         .order('created_at', { ascending: false });
 
       if (error) throw error;

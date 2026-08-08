@@ -8,11 +8,10 @@ import {
   Check, 
   X, 
   Send,
-  MoreVertical,
-  User,
   Loader2
 } from 'lucide-react';
-import { getSupabase } from '../supabase';
+import { supabase } from '@/integrations/supabase/client';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface Friend {
   id: string;
@@ -43,7 +42,7 @@ export function SocialPage() {
 
   const fetchFriends = async () => {
     setLoading(true);
-    const supabase = getSupabase();
+    
     if (!supabase || !user) return;
 
     const { data, error } = await supabase
@@ -64,7 +63,7 @@ export function SocialPage() {
           level
         )
       `)
-      .or(`user_id.eq.${user.uid},friend_id.eq.${user.uid}`);
+      .or(`user_id.eq.${profile?.uid ?? ""},friend_id.eq.${profile?.uid ?? ""}`);
 
     if (error) {
       console.error('Error fetching friends:', error);
@@ -77,14 +76,14 @@ export function SocialPage() {
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
-    const supabase = getSupabase();
+    
     if (!supabase || !user) return;
 
     const { data, error } = await supabase
       .from('profiles')
       .select('uid, display_name, avatar_url, level')
       .or(`display_name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
-      .neq('uid', user.uid)
+      .neq('uid', profile?.uid ?? "")
       .limit(5);
 
     if (error) {
@@ -96,14 +95,14 @@ export function SocialPage() {
   };
 
   const sendRequest = async (friendId: string) => {
-    const supabase = getSupabase();
+    
     if (!supabase || !user) return;
 
     // Check if already friends or request pending
     const { data: existing } = await supabase
       .from('friends')
       .select('id')
-      .eq('user_id', user.uid)
+      .eq('user_id', profile?.uid ?? "")
       .eq('friend_id', friendId)
       .single();
 
@@ -115,8 +114,8 @@ export function SocialPage() {
     const { error } = await supabase
       .from('friends')
       .insert([
-        { user_id: user.uid, friend_id: friendId, status: 'pending' },
-        { user_id: friendId, friend_id: user.uid, status: 'pending' } // Symmetric for simplicity in this demo
+        { user_id: profile?.uid ?? "", friend_id: friendId, status: 'pending' },
+        { user_id: friendId, friend_id: profile?.uid ?? "", status: 'pending' } // Symmetric for simplicity in this demo
       ]);
 
     if (error) {
@@ -130,8 +129,7 @@ export function SocialPage() {
   };
 
   const handleRequest = async (friendshipId: string, status: 'accepted' | 'declined') => {
-    const supabase = getSupabase();
-    if (!supabase) return;
+    
 
     const { error } = await supabase
       .from('friends')
@@ -157,7 +155,7 @@ export function SocialPage() {
 
   const acceptedFriends = friends.filter(f => f.status === 'accepted').map(f => {
     // If I am user_id, friend is friend_id. If I am friend_id, friend is user_id
-    if (f.user_id === user.uid) {
+    if (f.user_id === profile?.uid) {
       return {
         id: f.id,
         friend_id: f.friend_id,
@@ -172,8 +170,8 @@ export function SocialPage() {
     }
   });
 
-  const pendingRequests = friends.filter(f => f.status === 'pending' && f.friend_id === user.uid);
-  const outgoingRequests = friends.filter(f => f.status === 'pending' && f.user_id === user.uid);
+  const pendingRequests = friends.filter(f => f.status === 'pending' && f.friend_id === profile?.uid);
+  const outgoingRequests = friends.filter(f => f.status === 'pending' && f.user_id === profile?.uid);
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
@@ -207,7 +205,7 @@ export function SocialPage() {
               {searchResults.map(u => (
                 <div key={u.uid} className="flex items-center justify-between rounded-xl bg-primary/5 p-2">
                   <div className="flex items-center gap-2">
-                    <img src={u.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.uid}`} alt="" className="h-8 w-8 rounded-full" />
+                    <UserAvatar avatarUrl={u.avatar_url} displayName={u.display_name} size="sm" />
                     <div>
                       <p className="text-xs font-bold">{u.display_name}</p>
                       <p className="text-[10px] text-foreground/60">Ур. {u.level}</p>
@@ -253,7 +251,7 @@ export function SocialPage() {
                       {acceptedFriends.map(friend => (
                         <div key={friend.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-card p-4 shadow-sm">
                           <div className="flex items-center gap-4">
-                            <img src={friend.profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.friend_id}`} alt="" className="h-12 w-12 rounded-full border-2 border-primary/20" />
+                            <UserAvatar avatarUrl={friend.profile.avatar_url} displayName={friend.profile.display_name} size="md" />
                             <div>
                               <p className="font-bold">{friend.profile.display_name}</p>
                               <p className="text-xs text-foreground/60">Уровень {friend.profile.level}</p>
@@ -298,7 +296,7 @@ export function SocialPage() {
                           {pendingRequests.map(request => (
                             <div key={request.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-card p-4 shadow-sm">
                               <div className="flex items-center gap-4">
-                                <img src={(request as any).user_profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${request.user_id}`} alt="" className="h-12 w-12 rounded-full border-2 border-primary/20" />
+                                <UserAvatar avatarUrl={(request as any).user_profile.avatar_url} displayName={(request as any).user_profile.display_name} size="md" />
                                 <div>
                                   <p className="font-bold">{(request as any).user_profile.display_name}</p>
                                   <p className="text-xs text-foreground/60">Хочет добавить вас в друзья</p>
@@ -330,7 +328,7 @@ export function SocialPage() {
                           {outgoingRequests.map(request => (
                             <div key={request.id} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 p-4">
                               <div className="flex items-center gap-4">
-                                <img src={request.friend_profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${request.friend_id}`} alt="" className="h-12 w-12 rounded-full border-2 border-primary/20" />
+                                <UserAvatar avatarUrl={request.friend_profile.avatar_url} displayName={request.friend_profile.display_name} size="md" />
                                 <div>
                                   <p className="font-bold">{request.friend_profile.display_name}</p>
                                   <p className="text-xs text-foreground/60">Ожидание подтверждения</p>

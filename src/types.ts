@@ -1,22 +1,32 @@
 export type UserRole = 'superadmin' | 'admin' | 'author' | 'player';
 
+// Matches Supabase profiles table columns
 export interface UserProfile {
   uid: string;
-  email: string;
-  displayName: string;
+  email: string | null;
+  display_name: string;
+  // Aliases for legacy code compatibility
+  displayName?: string;
   photoURL?: string;
-  role: UserRole;
+  avatar_url: string | null;
+  role: string;
   balance: number;
+  level?: number;
+  telegram_id: string | null;
+  // Legacy alias
   telegramId?: string;
-  telegramConfirmationCode?: string;
-  referralCode: string;
-  referredBy?: string;
+  referral_code: string | null;
+  referralCode?: string;
+  referral_count?: number;
   referralCount?: number;
+  referral_earnings?: number;
   referralEarnings?: number;
-  authorStatus?: 'none' | 'pending' | 'active';
+  author_status?: string;
+  authorStatus?: string;
+  author_earnings?: number;
   authorEarnings?: number;
-  createdAt: number;
-  city?: 'Невинномысск' | 'Ставрополь';
+  created_at?: string;
+  createdAt?: number;
   purchasedGames?: string[];
   playedGames?: string[];
 }
@@ -49,17 +59,13 @@ export interface Question {
   mediaUrl?: string;
   mediaType?: 'image' | 'audio' | 'video';
   points?: number;
-  // For 100 to 1
   answers?: { text: string; points: number; hint?: string }[];
-  // For Jeopardy
   category?: string;
-  level?: number; // For Millionaire (1-15)
+  level?: number;
   audioStart?: number;
   audioEnd?: number;
-  // For What? Where? When?
   viewerName?: string;
   viewerAddress?: string;
-  // For Jeopardy
   round?: number;
   questionType?: 'normal' | 'cat_in_bag' | 'auction';
 }
@@ -67,7 +73,7 @@ export interface Question {
 export interface GameSession {
   id: string;
   gameId: string;
-  players: string[]; // UIDs
+  players: string[];
   scores: Record<string, number>;
   currentQuestionIndex: number;
   status: 'waiting' | 'playing' | 'finished';
@@ -117,5 +123,5 @@ export interface GalleryAlbum {
 export interface Photo {
   id: string;
   url: string;
-  tags: string[]; // User UIDs
+  tags: string[];
 }
