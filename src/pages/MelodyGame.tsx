@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Music, Send, AlertCircle, CheckCircle2, XCircle, RotateCcw, Home, Loader2 } from 'lucide-react';
@@ -139,7 +139,7 @@ export function MelodyGame() {
     setGameState('loading');
     try {
       // 25 questions: 5 categories x 5 questions
-      const generated = await geminiService.generateQuestions(topic, options.difficulty || 'people', 25, 'melody');
+      const generated = await protalkService.generateQuestions(topic, options.difficulty || 'people', 25, 'melody');
       setQuestions(generated);
       setGameState('playing');
       setCurrentPoints(1000);
@@ -157,7 +157,7 @@ export function MelodyGame() {
     startCheckTimer();
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = options.isPurchased ? 0 : 1;
+    const questionCost = options.isPurchased ? 0 : 10;
 
     try {
       if (questionCost > 0) {
@@ -166,7 +166,7 @@ export function MelodyGame() {
         setTimeout(() => setShowCoinAnimation(false), 1500);
       }
 
-      const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
+      const result = await protalkService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
       
       setFeedback(result);
       if (result.isCorrect) {
@@ -385,10 +385,12 @@ export function MelodyGame() {
             >
               <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
               <img 
-                src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                src="/file/13/logo.png" 
                 alt="Logo" 
-                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                 referrerPolicy="no-referrer"
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">

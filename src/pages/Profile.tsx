@@ -17,8 +17,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { db as supabase } from '../db';
-import { SHOP_ITEMS } from '../constants';
+import { db } from '../db';
 import { UserAvatar } from '../components/UserAvatar';
 
 interface ReferralEntry {
@@ -78,13 +77,13 @@ export function ProfilePage() {
 
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    if (!supabase || !profile) {
+    if (!db || !profile) {
       setLoadingHistory(false);
       return;
     }
     try {
       let sessions: any[] = [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('game_sessions')
         .select('*')
         .eq('user_id', profile.uid);
@@ -92,7 +91,7 @@ export function ProfilePage() {
       if (!error && data) {
         sessions = data;
       } else {
-        const { data: fallbackData } = await supabase
+        const { data: fallbackData } = await db
           .from('game_sessions')
           .select('*');
         if (fallbackData) {
@@ -128,7 +127,7 @@ export function ProfilePage() {
     setLoadingAuthor(true);
     try {
       // Get author's games from shop_items
-      const { data: items } = await supabase
+      const { data: items } = await db
         .from('shop_items')
         .select('*')
         .eq('author_id', profile.uid);
@@ -140,14 +139,14 @@ export function ProfilePage() {
       if (gameIds.length > 0) {
         // Get purchases of author's items
         const itemIds = (items || []).map((item: any) => item.id);
-        const { data: purchases } = await supabase
+        const { data: purchases } = await db
           .from('purchases')
           .select('*')
           .in('item_id', itemIds);
         setAuthorPurchases(purchases || []);
 
         // Get game sessions for author's games
-        const { data: sessions } = await supabase
+        const { data: sessions } = await db
           .from('game_sessions')
           .select('*')
           .in('game_id', gameIds)
@@ -167,17 +166,17 @@ export function ProfilePage() {
   };
 
   const fetchReferralData = async () => {
-    if (!supabase || !profile) return;
+    if (!db || !profile) return;
     setLoadingReferrals(true);
 
     const [tgResult, webResult] = await Promise.all([
       // Telegram referrals: invited via Telegram link
       profile.telegram_id
-        ? supabase.from('profiles').select('uid, display_name, telegram_id, username').eq('referred_by', profile.telegram_id)
+        ? db.from('users').select('uid, display_name, telegram_id, username').eq('referred_by', profile.telegram_id)
         : Promise.resolve({ data: [] }),
       // Web referrals: invited via web link (?ref=code)
       profile.referral_code
-        ? supabase.from('profiles').select('uid, display_name, telegram_id, username').eq('referred_code', profile.referral_code)
+        ? db.from('users').select('uid, display_name, telegram_id, username').eq('referred_code', profile.referral_code)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -188,15 +187,15 @@ export function ProfilePage() {
     const referredBy = (profile as any).referred_by;
     const referredCode = (profile as any).referred_code;
     if (referredBy) {
-      const { data: ref } = await supabase
-        .from('profiles')
+      const { data: ref } = await db
+        .from('users')
         .select('display_name, telegram_id, username, telegram_profile_url, email')
         .eq('telegram_id', referredBy)
         .maybeSingle();
       setReferrer(ref as ReferrerInfo | null);
     } else if (referredCode) {
-      const { data: ref } = await supabase
-        .from('profiles')
+      const { data: ref } = await db
+        .from('users')
         .select('display_name, telegram_id, username, telegram_profile_url, email')
         .eq('referral_code', referredCode)
         .maybeSingle();
@@ -737,7 +736,6 @@ export function ProfilePage() {
               {(profile as any)?.purchasedGames && (profile as any)?.purchasedGames.length > 0 ? (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {(profile as any)?.purchasedGames.map((gameId: string) => {
-                    const game = SHOP_ITEMS.find(i => i.id === gameId);
                     return (
                       <div key={gameId} className="flex items-center justify-between rounded-2xl border border-primary/10 bg-card p-4 shadow-sm">
                         <div className="flex items-center gap-3">
@@ -745,8 +743,8 @@ export function ProfilePage() {
                             <Gamepad2 size={20} />
                           </div>
                           <div>
-                            <p className="font-bold uppercase tracking-tighter">{game?.title || gameId}</p>
-                            <p className="text-[10px] text-foreground/40 uppercase tracking-widest">Автор: {game?.author || 'Неизвестен'}</p>
+                            <p className="font-bold uppercase tracking-tighter">{gameId}</p>
+                            <p className="text-sm text-foreground/40 uppercase tracking-widest">Купленная игра</p>
                           </div>
                         </div>
                         <Link to="/games" className="rounded-full bg-primary px-4 py-1.5 text-[10px] font-black uppercase text-background shadow-lg hover:scale-105 transition-transform">Играть</Link>
@@ -861,7 +859,7 @@ function AuthorApplicationBlock({ profileUid, onSuccess }: { profileUid: string;
     if (seconds <= 0) {
       // Update DB
       (async () => {
-        await supabase.from('profiles').update({ role: 'author', author_status: 'approved' }).eq('uid', profileUid);
+        await db.from('users').update({ role: 'author', author_status: 'approved' }).eq('uid', profileUid);
         setPhase('done');
         setTimeout(onSuccess, 2000);
       })();

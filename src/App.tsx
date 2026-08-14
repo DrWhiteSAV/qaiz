@@ -13,13 +13,9 @@ import { MillionaireGame } from './pages/MillionaireGame';
 import { OneHundredToOneGame } from './pages/OneHundredToOneGame';
 import { WhatWhereWhenGame } from './pages/WhatWhereWhenGame';
 import { MelodyGame } from './pages/MelodyGame';
-import { SocialPage } from './pages/Social';
-import { NewsPage } from './pages/News';
 import { RatingPage } from './pages/Rating';
-import { IQBoxGame } from './pages/IQBoxGame';
 import { JeopardyGame } from './pages/JeopardyGame';
-import { AdminPage } from './pages/Admin';
-import { ShopPage } from './pages/Shop';
+import { BlogPage } from './pages/Blog';
 import { CartPage } from './pages/CartPage';
 import { BillingPage } from './pages/Billing';
 import { GameCreationPage } from './pages/GameCreation';
@@ -30,6 +26,7 @@ import { SystemAdminPage } from './pages/SystemAdminPage';
 function AppRoutes() {
   const { loading, profile, entryMode } = useAuth();
   const location = useLocation();
+  const [isCacheReady, setIsCacheReady] = React.useState(false);
 
   React.useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get('ref');
@@ -39,8 +36,8 @@ function AppRoutes() {
     }
   }, []);
 
-  if (loading) {
-    return <SplashScreen />;
+  if (loading || !isCacheReady) {
+    return <SplashScreen onComplete={() => setIsCacheReady(true)} />;
   }
 
   // Browser mode without a session → show login page
@@ -66,21 +63,28 @@ function AppRoutes() {
           <>
             <Route path="/" element={<HomePage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/games" element={<ShopPage />} />
+            <Route path="/games" element={<Navigate to="/" replace />} />
             <Route path="/game/blitz" element={<BlitzGame />} />
             <Route path="/game/millionaire" element={<MillionaireGame />} />
             <Route path="/game/100to1" element={<OneHundredToOneGame />} />
             <Route path="/game/whatwherewhen" element={<WhatWhereWhenGame />} />
             <Route path="/game/melody" element={<MelodyGame />} />
             <Route path="/game/jeopardy" element={<JeopardyGame />} />
-            <Route path="/game/iqbox" element={<IQBoxGame />} />
             <Route path="/game/create" element={<GameCreationPage />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<Navigate to="/system-admin" replace />} />
             <Route path="/system-admin" element={<SystemAdminPage />} />
+            <Route path="/system-admin/triggers" element={<SystemAdminPage />} />
+            <Route path="/system-admin/cron" element={<SystemAdminPage />} />
+            <Route path="/system-admin/files" element={<SystemAdminPage />} />
+            <Route path="/system-admin/prompts" element={<SystemAdminPage />} />
+            <Route path="/system-admin/blog" element={<SystemAdminPage />} />
+            <Route path="/system-admin/posts" element={<SystemAdminPage />} />
+            <Route path="/system-admin/logs" element={<SystemAdminPage />} />
             <Route path="/cart" element={<CartPage />} />
             <Route path="/billing" element={<BillingPage />} />
-            <Route path="/social" element={<SocialPage />} />
-            <Route path="/news" element={<NewsPage />} />
+            <Route path="/social" element={<Navigate to="/" replace />} />
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/news" element={<Navigate to="/blog" replace />} />
             <Route path="/rating" element={<RatingPage />} />
           </>
         )}

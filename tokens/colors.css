@@ -1,0 +1,46 @@
+/* /tokens/colors.css */
+:root {
+  /* Brand Palette */
+  --color-primary: #99d037;         /* ЖЗ (Жёлто-Зелёный) */
+  --color-primary-light: #507d2a;   /* СЖЗ (Июньский бутон) */
+  --color-primary-dark: #425e17;    /* ТЖС (Глубокий жёлтый зелёный) */
+  --color-primary-hover: #507d2a;
+  --color-primary-glow: rgba(153, 208, 55, 0.3);
+  
+  /* Light Theme (#080a05 for text, transparent cards) */
+  --color-bg-light: #f8fafc;
+  --color-fg-light: #080a05;
+  --color-heading-light: #080a05;
+  --color-card-light: rgba(255, 255, 255, 0.75);
+  --color-border-light: rgba(153, 208, 55, 0.3);
+  --color-text-muted-light: #475569;
+
+  /* Dark Theme (#f8fafc body text, СЖЗ #507d2a for headings, transparent cards) */
+  --color-bg-dark: #0b0f19;
+  --color-fg-dark: #f8fafc;
+  --color-heading-dark: #507d2a;  /* СЖЗ для заголовков в темной теме */
+  --color-card-dark: rgba(15, 23, 42, 0.65);
+  --color-border-dark: rgba(153, 208, 55, 0.35);
+  --color-text-muted-dark: #94a3b8;
+}
+
+:root {
+  --color-bg: var(--color-bg-light);
+  --color-fg: var(--color-fg-light);
+  --color-heading: var(--color-heading-light);
+  --color-card: var(--color-card-light);
+  --color-border: var(--color-border-light);
+  --color-text-muted: var(--color-text-muted-light);
+  --card-bg: var(--color-card-light);
+}
+
+.dark {
+  --color-bg: var(--color-bg-dark);
+  --color-fg: var(--color-fg-dark);
+  --color-heading: var(--color-heading-dark);
+  --color-card: var(--color-card-dark);
+  --color-border: var(--color-border-dark);
+  --color-text-muted: var(--color-text-muted-dark);
+  --card-bg: var(--color-card-dark);
+}
+

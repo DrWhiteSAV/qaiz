@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle, Users, User, HelpCircle, Zap, Loader2, RotateCcw, Home } from 'lucide-react';
@@ -135,7 +135,7 @@ export function WhatWhereWhenGame() {
 
     setGameState('loading');
     try {
-      const generated = await geminiService.generateQuestions(topic, options.difficulty || 'genius', 11, 'whatwherewhen');
+      const generated = await protalkService.generateQuestions(topic, options.difficulty || 'genius', 11, 'whatwherewhen');
       setQuestions(generated);
       setAnsweredIndices([]);
       setIsSpinning(true);
@@ -153,14 +153,14 @@ export function WhatWhereWhenGame() {
     setChecking(true);
     
     const currentQuestion = questions[currentIndex];
-    const questionCost = options.isPurchased ? 0 : 1;
+    const questionCost = options.isPurchased ? 0 : 2;
     if (questionCost > 0) {
       await balanceService.deductBalance(profile?.uid ?? "", questionCost);
       setShowCoinAnimation(true);
       setTimeout(() => setShowCoinAnimation(false), 1500);
-      if (profile) (profile as any).balance = (profile.balance || 0) - 1;
+      if (profile) (profile as any).balance = (profile.balance || 0) - questionCost;
     }
-    const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
+    const result = await protalkService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
     setFeedback(result);
     
     const newExpertScore = result.isCorrect ? expertScore + 1 : expertScore;
@@ -370,7 +370,7 @@ export function WhatWhereWhenGame() {
     'dummy': 'ИИкра',
     'people': 'Головастик',
     'genius': 'Квант',
-    'god': 'Ляга-омега'
+    'god': 'Ляга'
   };
 
   return (
@@ -397,10 +397,12 @@ export function WhatWhereWhenGame() {
             >
               <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
               <img 
-                src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                src="/file/13/logo.png" 
                 alt="Logo" 
-                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                 referrerPolicy="no-referrer"
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">

@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { useTelegramAuth, TelegramUser, UserProfile, EntryMode } from '../hooks/useTelegramAuth';
-import { db as supabase } from '../db';
+import { db } from '../db';
 
 interface AuthContextType {
   user: TelegramUser | null;
@@ -22,8 +22,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateBalance = async (newBalance: number) => {
     if (!profile) return;
-    const { error } = await supabase
-      .from('profiles')
+    const { error } = await db
+      .from('users')
       .update({ balance: newBalance })
       .eq('uid', profile.uid);
     if (error) console.error('Error updating balance:', error);
@@ -33,18 +33,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!profile) return;
     const newBalance = profile.balance - totalPrice;
 
-    await supabase
-      .from('profiles')
+    await db
+      .from('users')
       .update({ balance: newBalance })
       .eq('uid', profile.uid);
 
-    for (const gameId of gameIds) {
-      await supabase.from('purchases').insert({
-        user_id: profile.uid,
-        item_id: gameId,
-        price_paid: Math.round(totalPrice / gameIds.length),
-      });
-    }
+    await db.from('transactions').insert({
+      id: `tx_${Date.now()}`,
+      user_id: profile.uid,
+      amount: -Math.abs(totalPrice),
+      currency: 'RR',
+      type: 'purchase',
+      description: `Покупка игр (${gameIds.join(', ')})`,
+      timestamp: Date.now()
+    });
   };
 
   const markGameAsPlayed = async (_gameId: string) => {

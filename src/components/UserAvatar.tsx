@@ -19,8 +19,8 @@ const SIZE_MAP = {
 
 export function UserAvatar({ avatarUrl, displayName, size = 'md', className }: UserAvatarProps) {
   const [imgError, setImgError] = useState(false);
-  const { container, icon, text } = SIZE_MAP[size];
-  const initial = displayName ? displayName[0].toUpperCase() : null;
+  const { container, text } = SIZE_MAP[size];
+  const effectiveAvatar = avatarUrl && !imgError ? avatarUrl : '/file/13/logo.png';
 
   return (
     <div
@@ -30,19 +30,15 @@ export function UserAvatar({ avatarUrl, displayName, size = 'md', className }: U
         className
       )}
     >
-      {avatarUrl && !imgError ? (
-        <img
-          src={avatarUrl}
-          alt={displayName ?? 'Аватар'}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-          onError={() => setImgError(true)}
-        />
-      ) : initial ? (
-        <span className={clsx('font-black text-primary leading-none', text)}>{initial}</span>
-      ) : (
-        <User size={icon} className="text-primary" />
-      )}
+      <img
+        src={effectiveAvatar}
+        alt={displayName ?? 'Аватар'}
+        className="h-full w-full object-cover select-none pointer-events-none"
+        referrerPolicy="no-referrer"
+        onError={() => setImgError(true)}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+      />
     </div>
   );
 }

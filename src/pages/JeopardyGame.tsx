@@ -6,7 +6,7 @@ import { Trophy, Star, User, Zap, Gift, Gavel, Trash2, Info, X, CheckCircle2, XC
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { saveGameSession, saveGameProgress, getGameProgress, deleteGameProgress } from '../db';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { Loader2, Timer, Lightbulb, RotateCcw, Home } from 'lucide-react';
 import { GameError } from '../components/GameError';
@@ -14,7 +14,7 @@ import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
 import { TopicRevealScreen } from '../components/TopicRevealScreen';
 
 import { GameChat, ChatMessage } from '../components/GameChat';
-import { AI_TEMPLATES, AITemplate } from '../constants';
+import { AI_TEMPLATES, AITemplate } from '../lib/gameHelpers';
 
 interface Question {
   id: string;
@@ -221,7 +221,7 @@ export const JeopardyGame: React.FC = () => {
       // Try unified generation first
       let allQuestionsData: { categoryName: string; questions: any[] }[];
       try {
-        allQuestionsData = await geminiService.generateAllJeopardyQuestions(
+        allQuestionsData = await protalkService.generateAllJeopardyQuestions(
           categories.map(c => ({ name: c.name, description: c.description })),
           round,
           values
@@ -229,7 +229,7 @@ export const JeopardyGame: React.FC = () => {
       } catch {
         // Fallback: generate per category
         allQuestionsData = await Promise.all(categories.map(async (cat) => {
-          const questionsData = await geminiService.generateJeopardyQuestions(cat.name, cat.description, values);
+          const questionsData = await protalkService.generateJeopardyQuestions(cat.name, cat.description, values);
           return { categoryName: cat.name, questions: questionsData };
         }));
       }
@@ -319,11 +319,11 @@ export const JeopardyGame: React.FC = () => {
           Для каждой категории придумай название и краткое описание (1 предложение).
           Названия должны быть краткими (1-3 слова). Все 15 тем должны быть РАЗНЫМИ.
           Верни JSON массив из 15 объектов с полями: name, description.`;
-        const allCats = await geminiService.generateJeopardyCategories(topic, 'auto');
+        const allCats = await protalkService.generateJeopardyCategories(topic, 'auto');
         // If AI returned less than 15, pad with generated ones
         let cats = allCats;
         if (cats.length < 15) {
-          const extra = await geminiService.generateJeopardyCategories(topic, 'auto');
+          const extra = await protalkService.generateJeopardyCategories(topic, 'auto');
           cats = [...cats, ...extra].slice(0, 15);
         }
         // Take first 15
@@ -516,7 +516,7 @@ export const JeopardyGame: React.FC = () => {
     if (!botPlayer.personality) return;
     
     try {
-      const comment = await geminiService.generateAIComment(
+      const comment = await protalkService.generateAIComment(
         botPlayer.personality,
         event,
         selectedQuestion?.question || '',
@@ -558,7 +558,7 @@ export const JeopardyGame: React.FC = () => {
         if (profile) (profile as any).balance = (profile.balance || 0) - 1;
       }
 
-      const result = await geminiService.checkAnswer(selectedQuestion.question, answerToSubmit, selectedQuestion.answer);
+      const result = await protalkService.checkAnswer(selectedQuestion.question, answerToSubmit, selectedQuestion.answer);
       const isCorrect = result.isCorrect;
       const q = selectedQuestion;
       const playerIdx = answeringPlayerIndex!;
@@ -850,10 +850,12 @@ export const JeopardyGame: React.FC = () => {
             >
               <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
               <img 
-                src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                src="/file/13/logo.png" 
                 alt="Logo" 
-                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                 referrerPolicy="no-referrer"
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">

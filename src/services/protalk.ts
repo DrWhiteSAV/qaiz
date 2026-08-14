@@ -2,9 +2,11 @@ import { db } from '../db';
 
 const AI_TIMEOUT_MS = 100000;
 
-async function callProTalkAI(prompt: string, mode: string = 'generate'): Promise<any> {
+async function callProTalkAI(prompt: string, mode: string = 'generate', gameId?: string, count?: number): Promise<any> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+
+  const activeUserId = localStorage.getItem('qaiz_active_user_id') || localStorage.getItem('user_id') || 'usr_169262990';
 
   let res: Response;
   try {
@@ -13,7 +15,13 @@ async function callProTalkAI(prompt: string, mode: string = 'generate'): Promise
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt, mode }),
+      body: JSON.stringify({ 
+        prompt, 
+        mode,
+        user_id: activeUserId,
+        game_id: gameId || mode,
+        count: count || 1
+      }),
       signal: controller.signal,
     });
   } catch (error) {
@@ -181,14 +189,24 @@ export const protalkService = {
     let content = DEFAULT_PROMPTS[gameId] || '';
 
     try {
-      const { data, error } = await db
-        .from('prompts')
-        .select('content')
-        .eq('game_id', gameId)
-        .single();
+      if (typeof window !== 'undefined') {
+        const res = await fetch('/api/prompts');
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.data && json.data[gameId]) {
+            content = json.data[gameId];
+          }
+        }
+      } else {
+        const { data, error } = await db
+          .from('prompts')
+          .select('content')
+          .eq('game_id', gameId)
+          .single();
 
-      if (!error && data) {
-        content = data.content;
+        if (!error && data && data.content) {
+          content = data.content;
+        }
       }
     } catch (e) {
       console.warn('DB prompts fetch failed, using default');
@@ -247,13 +265,34 @@ export const protalkService = {
     let prompt = customPrompt;
     
     if (!prompt) {
-      const difficultyMap: Record<string, string> = {
-        'dummy': 'очень простая, для новичков',
-        'people': 'средняя, для обычных людей',
-        'genius': 'высокая, для экспертов',
-        'god': 'экстремальная, для знатоков'
-      };
-      const diffDesc = difficultyMap[difficulty] || difficulty;
+      let diffDesc = difficulty;
+      try {
+        const { data } = await db
+          .from('difficulties')
+          .select('name, level, prompt_instructions')
+          .eq('id', difficulty)
+          .single();
+        
+        if (data && data.prompt_instructions) {
+          diffDesc = `"${data.name}" (${data.level}): ${data.prompt_instructions}`;
+        } else {
+          const difficultyMap: Record<string, string> = {
+            'dummy': 'ИИкра (1/4): очень простая, для новичков. Базовые известные факты.',
+            'people': 'Головастик (2/4): средняя, для обычных людей. Школьный кругозор.',
+            'genius': 'Квант (3/4): высокая, для экспертов. Глубокое понимание темы.',
+            'god': 'Ляга (4/4): экстремальная, для знатоков. Редкие утонченные факты.'
+          };
+          diffDesc = difficultyMap[difficulty] || difficulty;
+        }
+      } catch (_) {
+        const difficultyMap: Record<string, string> = {
+          'dummy': 'ИИкра (1/4): очень простая, для новичков.',
+          'people': 'Головастик (2/4): средняя, для обычных людей.',
+          'genius': 'Квант (3/4): высокая, для экспертов.',
+          'god': 'Ляга (4/4): экстремальная, для знатоков.'
+        };
+        diffDesc = difficultyMap[difficulty] || difficulty;
+      }
 
       if (type === 'blitz') {
         prompt = await this.getAIPrompt('blitz_questions', { count, topic, diffDesc });
@@ -270,12 +309,12 @@ export const protalkService = {
       }
     }
 
-    return await callProTalkAI(prompt, type);
+    return await callProTalkAI(prompt, type, type, count);
   },
 
   async generateSingleQuestion(topic: string, difficulty: string, type: string = 'normal', level: number = 1) {
     const prompt = await this.getAIPrompt('single_question', { topic, type, level, difficulty });
-    return await callProTalkAI(prompt, 'single_question');
+    return await callProTalkAI(prompt, 'single_question', type, 1);
   },
 
   async checkAnswer(question: string, userAnswer: string, correctAnswer: string) {
@@ -298,8 +337,6 @@ export const protalkService = {
   },
 };
 
-// Backwards compatibility aliases
-export const geminiService = protalkService;
 export const generateContent = async (params: { model?: string; contents: string | any; config?: any }) => {
   const prompt = typeof params.contents === 'string' ? params.contents : JSON.stringify(params.contents);
   return { text: JSON.stringify(await callProTalkAI(prompt, 'generate')) };

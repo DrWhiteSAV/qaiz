@@ -1,0 +1,13 @@
+/* /tokens/breakpoints.css */
+/* Mobile-first breakpoints guidelines */
+@media (min-width: 640px) {
+  :root {
+    --space-md: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --space-lg: 1.75rem;
+  }
+}

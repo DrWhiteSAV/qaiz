@@ -1,0 +1,7 @@
+/* /tokens/radius.css */
+:root {
+  --radius-sm: 0.5rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1.25rem;
+  --radius-full: 9999px;
+}

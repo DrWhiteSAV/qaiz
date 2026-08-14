@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { db as supabase } from '../db';
+import { db } from '../db';
 
 export interface TelegramUser {
   id: number;
@@ -19,6 +19,7 @@ export interface UserProfile {
   avatar_url: string | null;
   email: string | null;
   role: string;
+  balance_rr: number;
   balance: number;
   level: number;
   referral_code: string | null;
@@ -33,29 +34,21 @@ export interface UserProfile {
 
 export type EntryMode = 'preview' | 'telegram' | 'browser';
 
-/**
- * Detects entry mode synchronously.
- * CRITICAL: Check window.Telegram.WebApp FIRST before iframe check,
- * because Telegram Mini App also runs inside an iframe.
- */
 export function detectEntryMode(): EntryMode {
   const hostname = window.location.hostname;
   const href = window.location.href;
 
-  // 1. FIRST: check for Telegram WebApp SDK (loaded via <script> in index.html)
   const tg = (window as any).Telegram?.WebApp;
   if (tg?.initDataUnsafe?.user || (tg?.initData && tg.initData.length > 0)) {
     return 'telegram';
   }
 
-  // 2. Dev / preview iframe — only if NO Telegram SDK data
   try {
     if (window.self !== window.top) return 'preview';
   } catch (_) {
     return 'preview';
   }
 
-  // 3. Preview/dev hostnames
   if (
     href.includes('id-preview--') ||
     hostname.includes('run.app') ||
@@ -68,30 +61,36 @@ export function detectEntryMode(): EntryMode {
 }
 
 export const DEV_SUPER_USER: UserProfile = {
-  uid: '00000000-0000-0000-0000-000000000001',
-  telegram_id: '169262991',
-  display_name: 'Создатель (Dev)',
-  username: null,
-  telegram_profile_url: null,
+  uid: 'usr_169262990',
+  telegram_id: '169262990',
+  display_name: 'Тимошенко Денис',
+  username: 'shishkarnem',
+  telegram_profile_url: 'https://t.me/qaiz_aibot',
   avatar_url: null,
-  email: null,
-  role: 'superadmin',
-  balance: 999999,
+  email: 'shishkarnem@gmail.com',
+  role: 'admin',
+  balance_rr: 50000,
+  balance: 50000,
   level: 99,
-  referral_code: null,
-  referral_count: 0,
-  referral_earnings: 0,
-  author_earnings: 0,
-  author_status: 'none',
+  referral_code: 'REF169',
+  referral_count: 5,
+  referral_earnings: 250,
+  author_earnings: 1200,
+  author_status: 'verified',
   referred_by: null,
   referred_code: null,
   created_at: new Date().toISOString(),
 };
 
-/**
- * Reads Telegram WebApp initData or local email session, registers/updates the user in SQLite profiles,
- * and returns the stored profile.
- */
+function normalizeProfile(data: any): UserProfile {
+  const bal = data.balance_rr ?? data.balance ?? 0;
+  return {
+    ...data,
+    balance_rr: bal,
+    balance: bal
+  };
+}
+
 export function useTelegramAuth() {
   const [telegramUser, setTelegramUser] = useState<TelegramUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -99,12 +98,12 @@ export function useTelegramAuth() {
   const [entryMode, setEntryMode] = useState<EntryMode>('browser');
 
   const refetchProfile = async (telegramId: number) => {
-    const { data } = await supabase
-      .from('profiles')
+    const { data } = await db
+      .from('users')
       .select('*')
       .eq('telegram_id', String(telegramId))
       .maybeSingle();
-    if (data) setProfile(data as unknown as UserProfile);
+    if (data) setProfile(normalizeProfile(data));
   };
 
   useEffect(() => {
@@ -112,14 +111,12 @@ export function useTelegramAuth() {
       const mode = detectEntryMode();
       setEntryMode(mode);
 
-      // Dev / Preview mode → superadmin dev access
       if (mode === 'preview') {
         setProfile(DEV_SUPER_USER);
         setIsLoading(false);
         return;
       }
 
-      // Plain browser → check for active Email session in localStorage
       if (mode === 'browser') {
         const storedSession = localStorage.getItem('user_session') || localStorage.getItem('user_email_session');
         if (storedSession) {
@@ -127,17 +124,16 @@ export function useTelegramAuth() {
             const parsed = JSON.parse(storedSession);
             if (parsed && (parsed.uid || parsed.id)) {
               const uid = parsed.uid || parsed.id;
-              // Fetch latest from SQLite
-              const { data: dbProfile } = await supabase
-                .from('profiles')
+              const { data: dbProfile } = await db
+                .from('users')
                 .select('*')
                 .eq('uid', uid)
                 .maybeSingle();
 
               if (dbProfile) {
-                setProfile(dbProfile as unknown as UserProfile);
+                setProfile(normalizeProfile(dbProfile));
               } else {
-                setProfile(parsed as UserProfile);
+                setProfile(normalizeProfile(parsed));
               }
 
               setTelegramUser({
@@ -154,7 +150,6 @@ export function useTelegramAuth() {
         return;
       }
 
-      // ── Telegram Mini App flow ──
       const tg = (window as any).Telegram?.WebApp;
       let user: TelegramUser | null = null;
 
@@ -186,9 +181,8 @@ export function useTelegramAuth() {
         ? `https://t.me/${user.username}`
         : `tg://user?id=${user.id}`;
 
-      // Check if profile already exists in SQLite
-      const { data: existing } = await supabase
-        .from('profiles')
+      const { data: existing } = await db
+        .from('users')
         .select('*')
         .eq('telegram_id', telegramIdStr)
         .maybeSingle();
@@ -196,8 +190,8 @@ export function useTelegramAuth() {
       let resultData: any = null;
 
       if (existing) {
-        const { data: updated } = await supabase
-          .from('profiles')
+        const { data: updated } = await db
+          .from('users')
           .update({
             display_name: displayName,
             avatar_url: user.photo_url ?? null,
@@ -212,17 +206,18 @@ export function useTelegramAuth() {
         const referralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
         const isSuperAdmin = user.id === 169262990;
 
-        const { data: inserted } = await supabase
-          .from('profiles')
+        const { data: inserted } = await db
+          .from('users')
           .insert({
-            uid: crypto.randomUUID(),
+            id: isSuperAdmin ? '10016926299' : String(Date.now()),
+            uid: isSuperAdmin ? 'usr_169262990' : `usr_${user.id}`,
             telegram_id: telegramIdStr,
-            display_name: displayName,
+            display_name: isSuperAdmin ? 'Тимошенко Денис' : displayName,
             avatar_url: user.photo_url ?? null,
             username: usernameFormatted,
             telegram_profile_url: profileUrl,
-            role: isSuperAdmin ? 'superadmin' : 'player',
-            balance: 100,
+            role: isSuperAdmin ? 'admin' : 'player',
+            balance_rr: isSuperAdmin ? 50000 : 100,
             level: 1,
             referral_code: referralCode,
             referral_count: 0,
@@ -236,7 +231,7 @@ export function useTelegramAuth() {
       }
 
       if (resultData) {
-        setProfile(resultData as unknown as UserProfile);
+        setProfile(normalizeProfile(resultData));
       }
 
       setIsLoading(false);

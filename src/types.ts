@@ -1,6 +1,6 @@
 export type UserRole = 'superadmin' | 'admin' | 'author' | 'player';
 
-// Matches Supabase profiles table columns
+// Matches users table columns
 export interface UserProfile {
   uid: string;
   email: string | null;

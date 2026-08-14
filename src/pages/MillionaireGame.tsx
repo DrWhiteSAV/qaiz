@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, RotateCcw, Home, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -193,7 +193,7 @@ export function MillionaireGame() {
         
         Верни JSON массив из 3 строк — текстов сообщений. Каждое сообщение 1-2 предложения. Формат никнеймов: "НикнеймПользователя: текст сообщения".`;
       
-      const result = await geminiService.generateQuestions('', '', 1, 'generate', prompt);
+      const result = await protalkService.generateQuestions('', '', 1, 'generate', prompt);
       if (Array.isArray(result)) {
         setChatHelpMessages(result.map(String));
       } else if (typeof result === 'string') {
@@ -220,7 +220,7 @@ export function MillionaireGame() {
 
     setGameState('loading');
     try {
-      const allQuestions = await geminiService.generateQuestions(topic, options.difficulty || 'people', 15, 'millionaire');
+      const allQuestions = await protalkService.generateQuestions(topic, options.difficulty || 'people', 15, 'millionaire');
       if (!Array.isArray(allQuestions) || allQuestions.length < 15) {
         throw new Error("Не удалось сгенерировать достаточное количество вопросов");
       }
@@ -610,10 +610,12 @@ export function MillionaireGame() {
                   >
                     <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
                     <img 
-                      src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                      src="/file/13/logo.png" 
                       alt="Logo" 
-                      className="relative h-24 w-24 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                      className="relative h-24 w-24 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                       referrerPolicy="no-referrer"
+                      onContextMenu={(e) => e.preventDefault()}
+                      onDragStart={(e) => e.preventDefault()}
                     />
                   </motion.div>
                   <p className="mt-6 text-xl font-black uppercase tracking-tighter text-primary animate-pulse">
@@ -886,7 +888,14 @@ export function MillionaireGame() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/90 backdrop-blur-md">
               <motion.div animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }} transition={{ duration: 2, repeat: Infinity }} className="relative">
                 <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
-                <img src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" alt="Logo" className="relative h-24 w-24 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl" referrerPolicy="no-referrer" />
+                <img 
+                  src="/file/13/logo.png" 
+                  alt="Logo" 
+                  className="relative h-24 w-24 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none" 
+                  referrerPolicy="no-referrer" 
+                  onContextMenu={(e) => e.preventDefault()}
+                  onDragStart={(e) => e.preventDefault()}
+                />
               </motion.div>
               <p className="mt-6 text-xl font-black uppercase tracking-tighter text-primary animate-pulse">Загружаем чат... ({chatHelpTimer}с)</p>
             </motion.div>

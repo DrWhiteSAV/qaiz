@@ -35,7 +35,7 @@ class QueryBuilder {
   }
 
   upsert(data: any, options?: any) {
-    if (this.tableName === 'profiles') {
+    if (this.tableName === 'users' || this.tableName === 'profiles') {
       this.action = 'update';
       this.data = data;
     } else {
@@ -116,15 +116,15 @@ class QueryBuilder {
         return;
       }
 
-      if (this.tableName === 'news' && this.action === 'select') {
-        const res = await fetch('/api/news');
+      if ((this.tableName === 'posts' || this.tableName === 'news') && this.action === 'select') {
+        const res = await fetch('/api/posts');
         const json = await res.json();
         resolve({ data: json.data || [], error: null });
         return;
       }
 
-      if (this.tableName === 'news' && this.action === 'insert') {
-        const res = await fetch('/api/news', {
+      if ((this.tableName === 'posts' || this.tableName === 'news') && this.action === 'insert') {
+        const res = await fetch('/api/posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.data)
@@ -134,8 +134,8 @@ class QueryBuilder {
         return;
       }
 
-      if (this.tableName === 'news' && this.action === 'update' && this.eqConditions['id']) {
-        const res = await fetch(`/api/news/${this.eqConditions['id']}`, {
+      if ((this.tableName === 'posts' || this.tableName === 'news') && this.action === 'update' && this.eqConditions['id']) {
+        const res = await fetch(`/api/posts/${this.eqConditions['id']}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(this.data)
@@ -145,15 +145,15 @@ class QueryBuilder {
         return;
       }
 
-      if (this.tableName === 'news' && this.action === 'delete' && this.eqConditions['id']) {
-        await fetch(`/api/news/${this.eqConditions['id']}`, { method: 'DELETE' });
+      if ((this.tableName === 'posts' || this.tableName === 'news') && this.action === 'delete' && this.eqConditions['id']) {
+        await fetch(`/api/posts/${this.eqConditions['id']}`, { method: 'DELETE' });
         resolve({ data: null, error: null });
         return;
       }
 
-      if (this.tableName === 'profiles' && this.action === 'select' && (this.eqConditions['uid'] || this.eqConditions['id'])) {
-        const uid = this.eqConditions['uid'] || this.eqConditions['id'];
-        const res = await fetch(`/api/profiles/by-uid/${uid}`);
+      if ((this.tableName === 'users' || this.tableName === 'profiles') && this.action === 'select' && (this.eqConditions['uid'] || this.eqConditions['id'] || this.eqConditions['telegram_id'])) {
+        const uid = this.eqConditions['uid'] || this.eqConditions['id'] || this.eqConditions['telegram_id'];
+        const res = await fetch(`/api/users/by-uid/${uid}`);
         const json = await res.json();
         let p = json.data;
         if (p && !this.isSingle && !this.isMaybeSingle) p = [p];
@@ -161,10 +161,10 @@ class QueryBuilder {
         return;
       }
 
-      if (this.tableName === 'profiles' && this.action === 'update') {
+      if ((this.tableName === 'users' || this.tableName === 'profiles') && this.action === 'update') {
         const uid = this.eqConditions['uid'] || this.eqConditions['id'] || (this.data && (this.data.uid || this.data.id));
         if (uid) {
-          const res = await fetch(`/api/profiles/${uid}`, {
+          const res = await fetch(`/api/users/${uid}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(this.data)
@@ -228,7 +228,6 @@ export const sqliteClient = {
 };
 
 export const db = sqliteClient;
-export const supabase = sqliteClient; // backwards compatibility alias
 export const getDb = () => sqliteClient;
 
 type StoredGameProgress = {

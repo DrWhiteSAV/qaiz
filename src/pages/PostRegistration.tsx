@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { db as supabase } from '../db';
+import { db } from '../db';
 
 export function PostRegistrationPage() {
   const navigate = useNavigate();
@@ -17,8 +17,8 @@ export function PostRegistrationPage() {
         setChecking(false);
         return;
       }
-      const { data } = await supabase
-        .from('profiles')
+      const { data } = await db
+        .from('users')
         .select('telegram_id')
         .eq('uid', uid)
         .maybeSingle();

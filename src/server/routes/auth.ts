@@ -11,7 +11,7 @@ authRouter.post('/register', async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const existing = await getOne('SELECT * FROM profiles WHERE LOWER(email) = ?', [normalizedEmail]);
+    const existing = await getOne('SELECT * FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
     if (existing) {
       return res.status(400).json({ error: 'Пользователь с таким email уже зарегистрирован' });
     }
@@ -20,12 +20,12 @@ authRouter.post('/register', async (req, res) => {
     const displayName = display_name || normalizedEmail.split('@')[0] || 'Игрок';
 
     await runSql(
-      `INSERT INTO profiles (id, uid, email, password, display_name, role, balance_rub, coins)
+      `INSERT INTO users (id, uid, email, password, display_name, role, balance_rr, coins)
        VALUES (?, ?, ?, ?, ?, 'player', 100, 50)`,
       [uid, uid, normalizedEmail, password, displayName]
     );
 
-    const created = await getOne('SELECT * FROM profiles WHERE uid = ?', [uid]);
+    const created = await getOne('SELECT * FROM users WHERE uid = ?', [uid]);
     if (created) delete created.password;
 
     res.json({ data: created, message: 'Успешная регистрация' });
@@ -42,7 +42,7 @@ authRouter.post('/login', async (req, res) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await getOne('SELECT * FROM profiles WHERE LOWER(email) = ?', [normalizedEmail]);
+    const user = await getOne('SELECT * FROM users WHERE LOWER(email) = ?', [normalizedEmail]);
 
     if (!user) {
       return res.status(404).json({ error: 'Пользователь с таким email не найден' });

@@ -54,10 +54,12 @@ export function GenerationLoadingScreen({
       >
         <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 blur-3xl" />
         <img 
-          src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+          src="/file/13/logo.png" 
           alt="Logo" 
-          className="relative w-full h-full object-contain drop-shadow-2xl"
+          className="relative w-full h-full object-contain drop-shadow-2xl select-none pointer-events-none"
           referrerPolicy="no-referrer"
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
         />
       </motion.div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, HelpCircle, Zap, AlertCircle, CheckCircle2, XCircle, Heart, Send, Loader2, RotateCcw, Home } from 'lucide-react';
@@ -11,7 +11,7 @@ import { GameError } from '../components/GameError';
 import { GenerationLoadingScreen } from '../components/GenerationLoadingScreen';
 
 import { GameChat, ChatMessage } from '../components/GameChat';
-import { AI_TEMPLATES, AITemplate } from '../constants';
+import { AI_TEMPLATES, AITemplate } from '../lib/gameHelpers';
 import { GameSubmissionModal } from '../components/GameSubmissionModal';
 
 interface Answer {
@@ -199,7 +199,7 @@ export function OneHundredToOneGame() {
   const loadRound = async (roundNum: number) => {
     setGameState('loading');
     try {
-      const data = await geminiService.generateQuestions(topic, options.difficulty || 'people', 1, '100to1');
+      const data = await protalkService.generateQuestions(topic, options.difficulty || 'people', 1, '100to1');
       const gameData = Array.isArray(data) ? data[0] : data;
       
       setQuestion(gameData.question);
@@ -235,7 +235,7 @@ export function OneHundredToOneGame() {
     if (!botPlayer.personality) return;
     
     try {
-      const comment = await geminiService.generateAIComment(
+      const comment = await protalkService.generateAIComment(
         botPlayer.personality,
         event,
         question,
@@ -279,7 +279,7 @@ export function OneHundredToOneGame() {
       for (let i = 0; i < answers.length; i++) {
         if (answers[i].revealed) continue;
         
-        const check = await geminiService.checkAnswer(question, answerToSubmit, answers[i].text);
+        const check = await protalkService.checkAnswer(question, answerToSubmit, answers[i].text);
         if (check.isCorrect) {
           foundIndex = i;
           bestExplanation = check.explanation;
@@ -547,7 +547,7 @@ export function OneHundredToOneGame() {
     'dummy': 'ИИкра',
     'people': 'Головастик',
     'genius': 'Квант',
-    'god': 'Ляга-омега'
+    'god': 'Ляга'
   };
 
   return (
@@ -575,10 +575,12 @@ export function OneHundredToOneGame() {
               >
                 <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
                 <img 
-                  src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                  src="/file/13/logo.png" 
                   alt="Logo" 
-                  className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                  className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                   referrerPolicy="no-referrer"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onDragStart={(e) => e.preventDefault()}
                 />
               </motion.div>
               <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">

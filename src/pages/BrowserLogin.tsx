@@ -26,9 +26,11 @@ export function BrowserLoginPage() {
         >
           <div className="absolute inset-0 bg-primary/20 blur-[20px] rounded-full scale-75 opacity-50" />
           <img 
-            src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+            src="/file/13/logo.png" 
             alt="Квайз" 
-            className="relative h-28 md:h-36 w-auto drop-shadow-[0_0_15px_rgba(131,196,46,0.4)]" 
+            className="relative h-28 md:h-36 w-auto drop-shadow-[0_0_15px_rgba(131,196,46,0.4)] select-none pointer-events-none" 
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
           />
         </motion.div>
 

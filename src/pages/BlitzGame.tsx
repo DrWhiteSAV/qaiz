@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { protalkService, protalkService as geminiService } from '../services/protalk';
+import { protalkService } from '../services/protalk';
 import { balanceService } from '../services/balanceService';
 import { CoinAnimation } from '../components/CoinAnimation';
 import { Timer, Send, AlertCircle, CheckCircle2, XCircle, HelpCircle, Zap, Loader2, RotateCcw, Home } from 'lucide-react';
@@ -139,7 +139,7 @@ export function BlitzGame() {
 
     setGameState('loading');
     try {
-      const generated = await geminiService.generateQuestions(topic, difficulty, 10, 'blitz');
+      const generated = await protalkService.generateQuestions(topic, difficulty, 10, 'blitz');
       setQuestions(generated);
       setGameState('playing');
       setTimeLeft(60);
@@ -167,7 +167,7 @@ export function BlitzGame() {
         if (profile) (profile as any).balance = (profile.balance || 0) - 1;
       }
       
-      const result = await geminiService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
+      const result = await protalkService.checkAnswer(currentQuestion.text, userAnswer, currentQuestion.correctAnswer);
       
       setFeedback(result);
       if (result.isCorrect) setScore(s => s + 1);
@@ -195,7 +195,7 @@ export function BlitzGame() {
       setTimeLeft(60);
       setGameState('playing');
     } else {
-      // Save session to Supabase
+      // Save session to SQLite database
       if (user) {
         const finalScore = score;
         await saveGameSession({
@@ -344,7 +344,7 @@ export function BlitzGame() {
     'dummy': 'ИИкра',
     'people': 'Головастик',
     'genius': 'Квант',
-    'god': 'Ляга-омега'
+    'god': 'Ляга'
   };
 
   return (
@@ -372,10 +372,12 @@ export function BlitzGame() {
             >
               <div className="absolute -inset-4 animate-pulse rounded-full bg-primary/20 blur-xl" />
               <img 
-                src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" 
+                src="/file/13/logo.png" 
                 alt="Logo" 
-                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl"
+                className="relative h-32 w-32 rounded-3xl border-4 border-primary/50 object-cover shadow-2xl select-none pointer-events-none"
                 referrerPolicy="no-referrer"
+                onContextMenu={(e) => e.preventDefault()}
+                onDragStart={(e) => e.preventDefault()}
               />
             </motion.div>
             <p className="mt-8 text-2xl font-black uppercase tracking-tighter text-primary animate-pulse">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Medal } from 'lucide-react';
-import { db as supabase } from '../db';
+import { db } from '../db';
 import { UserAvatar } from '../components/UserAvatar';
 
 export const RatingPage = () => {
@@ -13,12 +13,11 @@ export const RatingPage = () => {
 
   const fetchLeaders = async () => {
     try {
-      
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('profiles')
+      if (db) {
+        const { data, error } = await db
+          .from('users')
           .select('*')
-          .order('balance', { ascending: false })
+          .order('balance_rr', { ascending: false })
           .limit(50);
         
         if (error) throw error;

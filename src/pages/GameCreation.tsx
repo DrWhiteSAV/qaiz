@@ -29,8 +29,21 @@ import { useAuth } from '../context/AuthContext';
 import { db } from '../db';
 import { Game, Question, GameMode, Difficulty } from '../types';
 import { TopicCloud } from '../components/TopicCloud';
-import { TOPICS } from '../constants';
 import { generateContent } from '../services/protalk';
+
+const DEFAULT_TOPICS = [
+  'Общие знания',
+  'История',
+  'География',
+  'Кино и ТВ',
+  'Музыка',
+  'Наука и природа',
+  'Спорт',
+  'Искусство',
+  'Литература',
+  'Технологии',
+  'Игры'
+];
 
 type GameType = 'blitz' | 'millionaire' | '100to1' | 'whatwherewhen' | 'melody' | 'jeopardy' | 'iqbox';
 
@@ -217,7 +230,7 @@ export const GameCreationPage: React.FC = () => {
       Сделай его более интересным, добавь юмора в стиле "Квада" (лягушки, болото, ирония, кваканье).
       Верни JSON с полями: text, correctAnswer, options (массив строк, если нужно), explanation, hint.`;
       
-      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const response = await generateContent({ contents: prompt });
       const improved = JSON.parse(response.text || '{}');
       
       const newQuestions = [...questions];
@@ -259,7 +272,7 @@ export const GameCreationPage: React.FC = () => {
       JSON формат: { "suggestedQuestions": [{ "text": "...", "correctAnswer": "...", "options": [...], "explanation": "...", "points": 100 }] }
       Для "100to1" добавь поле "answers": [{"text": "...", "points": 100, "mediaUrl": "...", "mediaType": "image|video"}, ...] (6 штук).`;
       
-      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const response = await generateContent({ contents: prompt });
       const text = response.text || '';
       
       const jsonMatch = text.match(/\{.*\}/s);
@@ -321,7 +334,7 @@ export const GameCreationPage: React.FC = () => {
       Посоветуй лучший бесплатный способ или API для этого (например, Spleeter, VocalRemover.org, или RapidAPI Vocal Remover).
       Ответь кратко и вежливо в стиле лягушки-помощника.`;
       
-      const response = await generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+      const response = await generateContent({ contents: prompt });
       alert(response.text || 'Используйте инструментальные версии треков или сервис VocalRemover.org для подготовки файлов.');
     } catch (err) {
       console.error('Vocal removal error:', err);
@@ -375,10 +388,10 @@ export const GameCreationPage: React.FC = () => {
         createdAt: Date.now()
       };
 
-      // For now store locally / in Supabase later when games table is ready
+      // Store game in SQLite database
       console.log('Game created:', gameData);
       alert('Игра успешно создана!');
-      navigate('/admin');
+      navigate('/system-admin');
     } catch (error) {
       console.error('Error saving game:', error);
       alert('Ошибка при сохранении игры');
@@ -491,7 +504,7 @@ export const GameCreationPage: React.FC = () => {
                 <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60">4. Тема</label>
                 <div className="max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                   <TopicCloud 
-                    topics={TOPICS}
+                    topics={DEFAULT_TOPICS}
                     selectedTopic={gameInfo.topic}
                     onSelect={(topic) => setGameInfo(prev => ({ ...prev, topic }))}
                   />
@@ -511,7 +524,7 @@ export const GameCreationPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-black uppercase tracking-[0.2em] text-primary/60">5. Сложность</label>
                     <button 
-                      onClick={() => alert('Уровни сложности:\n\n1. ИИкра (1/4) - Самый простой уровень.\n2. Головастик (2/4) - Средний уровень.\n3. Квант (3/4) - Высокий уровень.\n4. Ляга-омега (4/4) - Экспертный уровень.')}
+                      onClick={() => alert('Уровни сложности:\n\n1. ИИкра (1/4) - Самый простой уровень.\n2. Головастик (2/4) - Средний уровень.\n3. Квант (3/4) - Высокий уровень.\n4. Ляга (4/4) - Экспертный уровень.')}
                       className="text-[10px] font-bold uppercase tracking-widest text-primary/40 hover:text-primary transition-colors flex items-center gap-1"
                     >
                       <HelpCircle size={12} />
@@ -523,7 +536,7 @@ export const GameCreationPage: React.FC = () => {
                       { id: 'dummy', label: 'ИИкра', level: '1/4' },
                       { id: 'people', label: 'Головастик', level: '2/4' },
                       { id: 'genius', label: 'Квант', level: '3/4' },
-                      { id: 'god', label: 'Ляга-омега', level: '4/4' }
+                      { id: 'god', label: 'Ляга', level: '4/4' }
                     ].map((diff) => (
                       <button
                         key={diff.id}

@@ -11,27 +11,36 @@ export function AuthModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
   if (!isOpen || profile) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(11,28,28,0.85)', backdropFilter: 'blur(8px)' }}>
-      <div className="border-glow relative w-full max-w-md p-4 md:p-6 shadow-[12px_12px_0px_0px_#0b1c1c] my-auto">
-        <button onClick={() => { playCroak(); onClose(); }} className="absolute right-3 top-3 hover:scale-110 transition-transform" style={{ color: 'var(--primary)' }}>
-          <X size={20} className="md:w-6 md:h-6" />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-black/50 backdrop-blur-md">
+      <div className="relative w-full max-w-md p-6 rounded-3xl border border-primary/25 bg-card/95 text-foreground shadow-2xl my-auto animate-in fade-in zoom-in-95">
+        <button
+          onClick={() => { playCroak(); onClose(); }}
+          className="absolute right-4 top-4 p-2 rounded-xl text-foreground/70 hover:bg-primary/10 hover:text-primary transition-colors"
+        >
+          <X size={20} />
         </button>
         
-        <div className="text-center mb-4">
-          <img src="https://i.ibb.co/m5vZ0MhJ/qaizlogo.png" alt="Logo" className="mx-auto h-12 w-12 md:h-16 md:w-16 drop-shadow-[0_0_10px_rgba(11,28,28,0.2)]" />
-          <h2 className="mt-2 text-xl md:text-2xl font-black uppercase tracking-tighter title-glow" style={{ color: 'var(--primary)' }}>Вход в Квайз</h2>
+        <div className="text-center mb-5">
+          <img 
+            src="/file/13/logo.png" 
+            alt="Logo" 
+            className="mx-auto h-14 w-14 drop-shadow-[0_0_12px_rgba(16,185,129,0.3)] select-none pointer-events-none" 
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
+          />
+          <h2 className="mt-3 text-2xl font-black uppercase tracking-tight text-primary">Вход в Квайз</h2>
         </div>
 
         <EmailAuthForm onSuccess={() => onClose()} />
 
-        <div className="mt-6 pt-4 border-t border-primary/20 text-center">
-          <p className="text-xs text-foreground/60 mb-2">Или откройте приложение через Telegram</p>
+        <div className="mt-6 pt-4 border-t border-primary/15 text-center">
+          <p className="text-xs text-foreground/70 mb-2.5">Или откройте приложение через Telegram</p>
           <a
-            href="https://t.me/qaizquizbot"
+            href="https://t.me/qaiz_aibot"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => playCroak()}
-            className="btn-primary flex w-full items-center justify-center gap-2 py-2.5 text-sm"
+            className="btn-primary flex w-full items-center justify-center gap-2 py-3 text-xs font-bold uppercase tracking-wider rounded-2xl shadow-lg"
           >
             <Send size={16} className="rotate-[-45deg]" />
             Открыть в Telegram
